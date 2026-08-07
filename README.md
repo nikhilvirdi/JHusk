@@ -1,5 +1,7 @@
 # Husk (JHusk)
 
+[![CI](https://github.com/nikhilvirdi/JHusk/actions/workflows/ci.yml/badge.svg)](https://github.com/nikhilvirdi/JHusk/actions/workflows/ci.yml)
+
 ## What is JHusk?
 
 <p align="center">
