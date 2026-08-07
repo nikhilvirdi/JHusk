@@ -169,9 +169,14 @@ public class DataSource {
                 drawn[i] = (byte) random.nextInt();
             }
 
-            // Record drawn bytes into ByteArrayOutputStream for future replay/saving
+            // Record drawn bytes into ByteArrayOutputStream for future replay/saving.
+            // ByteArrayOutputStream.write(byte[], int, int) copies the bytes internally (it does
+            // not retain a reference to `drawn`), so `drawn` is safe to return directly -- no
+            // caller can mutate it in a way that corrupts recordingBuffer's already-copied state.
+            // This is a fresh, never-aliased array, so a defensive .clone() here would only add an
+            // allocation and a copy on every single primitive draw for zero actual safety benefit.
             recordingBuffer.write(drawn, 0, n);
-            return drawn.clone();
+            return drawn;
         }
     }
 
@@ -221,17 +226,21 @@ public class DataSource {
     /**
      * Draws a 1-byte boolean value.
      * <p>
-     * <b>Bit Manipulation Breakdown:</b><br>
-     * Bitwise AND {@code bytes[0] & 1} extracts the least significant bit (0 or 1), returning {@code true}
-     * if the LSB is 1 and {@code false} if 0.
+     * <b>Encoding:</b><br>
+     * Byte {@code 0x00} decodes to {@code false} (the D4 shrink target); any nonzero byte decodes
+     * to {@code true}. This is monotonic by construction, matching {@code Generators.booleans()}'s
+     * encoding exactly (in fact {@code Generators.booleans()} delegates here). An earlier version
+     * of this method used a parity/LSB check ({@code byte & 1}), which is <em>not</em> monotonic —
+     * byte 1 and byte 3 both decode to {@code true} while byte 2 decodes to {@code false},
+     * regardless of magnitude — so it was replaced with this nonzero check.
      *
-     * @return {@code true} or {@code false} based on drawn byte LSB
+     * @return {@code true} or {@code false} based on the drawn byte
      * @throws IllegalStateException if frozen
      * @throws DataSourceOverrunException if buffer cap is exceeded
      */
     public boolean drawBoolean() {
         byte[] bytes = drawBytes(1);
-        return (bytes[0] & 1) != 0;
+        return bytes[0] != 0;
     }
 
     // --- Span recording ---

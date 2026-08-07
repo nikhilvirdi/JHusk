@@ -2,7 +2,6 @@ package io.github.nikhilvirdi.jhusk;
 
 import io.github.nikhilvirdi.jhusk.internal.DataSource;
 import io.github.nikhilvirdi.jhusk.internal.DataSourceOverrunException;
-import io.github.nikhilvirdi.jhusk.internal.FailureStorage;
 import io.github.nikhilvirdi.jhusk.internal.ShrinkHarness;
 import io.github.nikhilvirdi.jhusk.internal.Shrinker;
 
@@ -28,12 +27,12 @@ import java.util.function.Consumer;
  * single thread, then call {@link #check()}/{@link #check(long)}; do not mutate its configuration
  * concurrently with a {@code check()} call, and do not call {@code check()} concurrently from
  * multiple threads on the same instance. {@code check()} itself creates a fresh, thread-local
- * {@link DataSource} for every example, so it does not race against itself internally — the one
- * exception is failure persistence: two {@code check()} calls (whether on the same or different
- * {@code Property} instances) that share both a storage directory and a property identity will
- * race on the same {@code .jhusk/<id>.bytes} file, since {@link
- * io.github.nikhilvirdi.jhusk.internal.FailureStorage} performs unsynchronized file I/O. Distinct
- * identities, or distinct storage directories, are safe to run concurrently.
+ * {@link DataSource} for every example, so it does not race against itself internally. Failure
+ * persistence writes atomically (see {@link FailureStorage}'s own thread-safety note), so two
+ * {@code check()} calls that share both a storage directory and a property identity can't corrupt
+ * each other's stored buffer — but they can still race for which one's failure ends up stored,
+ * since one write's atomic rename simply wins outright over the other's. Distinct identities, or
+ * distinct storage directories, are entirely unaffected.
  */
 public final class Property<T> {
 
@@ -111,10 +110,10 @@ public final class Property<T> {
     /**
      * Sets the exact {@link FailureStorage} instance to use for failure persistence.
      *
-     * <p>{@code FailureStorage} lives in JHusk's {@code internal} package; most callers should
-     * prefer {@link #withStorageDir(Path)}, which only requires a {@link Path} and covers the
-     * common case (redirecting storage location, e.g. for test isolation) without depending on
-     * an internal type directly.
+     * <p>{@link #withStorageDir(Path)} covers the common case (redirecting storage location, e.g.
+     * for test isolation) and only requires a {@link Path}; reach for this overload when you need
+     * to reuse a specific, already-configured {@code FailureStorage} instance across multiple
+     * {@code Property} runs.
      *
      * @param storage the failure storage instance to use
      * @return this instance, for fluent chaining
@@ -133,6 +132,23 @@ public final class Property<T> {
      */
     public Property<T> examples(int examples) {
         this.examples = examples;
+        return this;
+    }
+
+    /**
+     * Sets the maximum number of invalid runs (filter rejections or generator overruns) tolerated
+     * before {@link #check()}/{@link #check(long)} aborts with an invalid-budget {@link
+     * AssertionError}. Default is 1000.
+     *
+     * <p>Raise this if a generator is legitimately expected to reject a large fraction of draws
+     * (e.g. a narrow {@code filter(...)} over a wide domain) and 1000 rejected attempts isn't
+     * enough headroom to reach {@link #examples(int)} successful ones.
+     *
+     * @param maxInvalidRuns the maximum number of invalid runs to tolerate
+     * @return this instance, for fluent chaining
+     */
+    public Property<T> maxInvalidRuns(int maxInvalidRuns) {
+        this.maxInvalidRuns = maxInvalidRuns;
         return this;
     }
 
@@ -176,7 +192,14 @@ public final class Property<T> {
             try {
                 storedValue = generator.generate(storedSource);
                 storedSource.freeze();
-                if (storedSource.getStatus() != DataSource.Status.INVALID) {
+                // R4: only a VALID replay can determine pass/fail. A stored buffer can OVERRUN if
+                // the generator's shape changed since it was saved (e.g. a refactor added a
+                // parameter or a composed generator now consumes more bytes) -- replay then reads
+                // zero-padded garbage for whatever ran off the end. Checking "!= INVALID" alone
+                // let OVERRUN slip through as if it were a normal run: the garbage value would
+                // silently satisfy the assertion, and the stored failure -- a real, never actually
+                // re-validated regression -- would be pruned as "fixed" below.
+                if (storedSource.getStatus() == DataSource.Status.VALID) {
                     assertion.accept(storedValue);
                 }
             } catch (Throwable failure) {
@@ -318,8 +341,18 @@ public final class Property<T> {
      * allows zero-config failure persistence for quick tests. However, it is brittle across refactors:
      * renaming the test method or moving lines changes the auto-detected identity and orphans stored failure files.
      *
+     * <p>More severe than orphaning: if multiple properties are checked from the <em>same call
+     * site</em> — most commonly, a shared helper method that wraps {@code Property.forAll(...).check(...)}
+     * and is reused across several distinct properties — every one of them resolves to the exact
+     * same auto-detected identity and silently overwrites the others' stored failures, since the
+     * identity is derived from where {@code check()} was called, not which property it belongs to.
+     * (The {@code @Property}/{@code @ForAll} JUnit annotations avoid this entirely: {@link
+     * io.github.nikhilvirdi.jhusk.junit.PropertyExtension} always derives an explicit name from the
+     * reflected test method itself rather than relying on this stack walk.)
+     *
      * <p>Providing an explicit property name via {@code .named("my-property")} or
-     * {@code Property.forAll("my-property", ...)} is the recommended practice for stable regression testing.
+     * {@code Property.forAll("my-property", ...)} is the recommended practice for stable regression
+     * testing, and the only way to avoid both failure modes when calling {@code check()} directly.
      */
     private String resolvePropertyId() {
         if (this.name != null && !this.name.isBlank()) {

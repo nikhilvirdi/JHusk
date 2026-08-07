@@ -14,6 +14,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClass;
@@ -69,6 +71,60 @@ class PropertyExtensionTest {
         @Property(name = "test-junit-failure", examples = 100)
         void failingProperty(@ForAll int x) {
             assertTrue(x < 1000000);
+        }
+    }
+
+    // Regression test for a severe bug found during the final pre-release audit: every @Property
+    // method that didn't set an explicit name() funneled through Property.resolvePropertyId()'s
+    // stack-walk, which finds the first stack frame whose class isn't Property itself. But EVERY
+    // @Property method is invoked through this exact interceptor call site, so that "first
+    // non-Property frame" was ALWAYS PropertyExtension's own internal frame, never the user's test
+    // method -- meaning every unnamed @Property method in an entire project collided onto one
+    // shared ".jhusk/...PropertyExtension...bytes" file, silently overwriting each other's stored
+    // failures. Confirmed empirically before the fix (two distinct properties produced exactly one
+    // shared file); the fix derives the identity directly from the reflected Method instead.
+    static class TwoUnnamedFailingProperties {
+        @Property(examples = 3)
+        void propertyOne(@ForAll int x) {
+            assertTrue(false, "always fails A");
+        }
+
+        @Property(examples = 3)
+        void propertyTwo(@ForAll int x) {
+            assertTrue(false, "always fails B");
+        }
+    }
+
+    @Test
+    @DisplayName("Two different unnamed @Property methods get distinct stored-failure identities, not a shared one")
+    void unnamedPropertiesDoNotCollideOnAutoDetectedIdentity() throws IOException {
+        Path jhuskDir = Path.of(".jhusk");
+        List<Path> before = listJhuskFiles(jhuskDir);
+
+        EngineTestKit.engine("junit-jupiter")
+                .selectors(selectClass(TwoUnnamedFailingProperties.class))
+                .execute();
+
+        List<Path> after = listJhuskFiles(jhuskDir);
+        List<Path> created = after.stream().filter(p -> !before.contains(p)).collect(Collectors.toList());
+
+        try {
+            assertEquals(2, created.size(),
+                    "propertyOne and propertyTwo must produce two distinct stored-failure files, not collide "
+                            + "onto a single shared one derived from PropertyExtension's own internal call site");
+        } finally {
+            for (Path p : created) {
+                Files.deleteIfExists(p);
+            }
+        }
+    }
+
+    private static List<Path> listJhuskFiles(Path dir) throws IOException {
+        if (!Files.isDirectory(dir)) {
+            return List.of();
+        }
+        try (Stream<Path> stream = Files.list(dir)) {
+            return stream.collect(Collectors.toList());
         }
     }
 

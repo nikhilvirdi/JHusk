@@ -31,15 +31,10 @@ public final class Generators {
     /**
      * Returns a generator of {@code boolean} values.
      *
-     * <p><b>Encoding:</b> Draws 1 byte. Byte {@code 0x00} → {@code false} (shrink target).
-     * Any nonzero byte → {@code true}. This is monotonic by construction: 0 is the
-     * unique lexicographic minimum and the only value producing {@code false}; every
-     * larger byte value produces {@code true}.
-     *
-     * <p><b>Why not use DataSource.drawBoolean():</b> That method uses a parity/LSB check
-     * ({@code byte & 1}), which is NOT monotonic — odd bytes map to true regardless of
-     * magnitude (e.g., byte 1 → true, byte 2 → false, byte 3 → true). The generator
-     * layer must own the monotonic encoding, so we draw a raw byte and check {@code != 0}.
+     * <p><b>Encoding:</b> Draws 1 byte via {@link DataSource#drawBoolean()}. Byte {@code 0x00} →
+     * {@code false} (shrink target). Any nonzero byte → {@code true}. This is monotonic by
+     * construction: 0 is the unique lexicographic minimum and the only value producing
+     * {@code false}; every larger byte value produces {@code true}.
      *
      * <p><b>Span:</b> labeled {@code "bool"}, 1 byte wide.
      *
@@ -49,12 +44,7 @@ public final class Generators {
         return source -> {
             source.startSpan("bool");
             try {
-                // Draw 1 raw byte and check nonzero (NOT parity/LSB)
-                // Byte 0x00 → false (shrink target D4)
-                // Any nonzero byte → true
-                // Monotonic: 0 < any nonzero, so false < true maps correctly
-                byte[] bytes = source.drawBytes(1);
-                return bytes[0] != 0;
+                return source.drawBoolean();
             } finally {
                 source.endSpan();
             }

@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.SplittableRandom;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -236,6 +238,80 @@ class GeneratorsTest {
             Generator<Double> gen = Generators.doubles();
             double val = gen.generate(new DataSource(new byte[8]));
             assertEquals(0.0, val, "All-zero bytes must produce 0.0");
+        }
+
+        /**
+         * integers(MIN_VALUE, MAX_VALUE) hits the {@code range == (1L << 32)} special case in
+         * integers(min, max) -- a DIFFERENT formula (identity mapping via wrapping addition) than
+         * the general multiplicative-scaling path every other bounded test above exercises.
+         * fullIntRangeContainment (below, in BoundedIntegerRange) already checks containment for
+         * this range, but never monotonicity specifically -- this closes that gap.
+         */
+        @Test
+        @DisplayName("integers(MIN_VALUE, MAX_VALUE): the full-range identity-mapping special case is monotonic")
+        void fullRangeSpecialCaseMonotonicity() {
+            Generator<Integer> gen = Generators.integers(Integer.MIN_VALUE, Integer.MAX_VALUE);
+            SplittableRandom rng = new SplittableRandom(31415);
+
+            for (int i = 0; i < 20_000; i++) {
+                byte[] bufA = new byte[4];
+                byte[] bufB = new byte[4];
+                rng.nextBytes(bufA);
+                rng.nextBytes(bufB);
+                if (compareLex(bufA, bufB) > 0) { byte[] t = bufA; bufA = bufB; bufB = t; }
+
+                int valA = gen.generate(new DataSource(bufA));
+                int valB = gen.generate(new DataSource(bufB));
+
+                assertTrue(valA <= valB,
+                        "Monotonicity violation in full-range special case: " + valA + " > " + valB);
+            }
+
+            assertEquals(Integer.MIN_VALUE, gen.generate(new DataSource(new byte[4])),
+                    "All-zero bytes must produce MIN_VALUE (D4 shrink target)");
+            assertEquals(Integer.MAX_VALUE,
+                    gen.generate(new DataSource(new byte[]{(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF})),
+                    "All-0xFF bytes must produce MAX_VALUE");
+        }
+
+        /** Single-value ranges pinned to the exact extremes of the int type, not just the middle (5,5). */
+        @Test
+        @DisplayName("integers(): single-value ranges at the extreme int boundaries always return that exact value")
+        void extremeSingleValueRanges() {
+            Generator<Integer> atMin = Generators.integers(Integer.MIN_VALUE, Integer.MIN_VALUE);
+            Generator<Integer> atMax = Generators.integers(Integer.MAX_VALUE, Integer.MAX_VALUE);
+            byte[] zero = new byte[4];
+            byte[] allOnes = {(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF};
+
+            assertEquals(Integer.MIN_VALUE, atMin.generate(new DataSource(zero)));
+            assertEquals(Integer.MIN_VALUE, atMin.generate(new DataSource(allOnes)));
+            assertEquals(Integer.MAX_VALUE, atMax.generate(new DataSource(zero)));
+            assertEquals(Integer.MAX_VALUE, atMax.generate(new DataSource(allOnes)));
+        }
+
+        /** The narrowest possible 2-value ranges sitting right at each extreme boundary. */
+        @Test
+        @DisplayName("integers(): the narrowest possible 2-value ranges at both extreme boundaries are monotonic")
+        void extremeTwoValueRangesMonotonicity() {
+            Generator<Integer> low = Generators.integers(Integer.MIN_VALUE, Integer.MIN_VALUE + 1);
+            Generator<Integer> high = Generators.integers(Integer.MAX_VALUE - 1, Integer.MAX_VALUE);
+
+            assertEquals(Integer.MIN_VALUE, low.generate(new DataSource(new byte[4])));
+            assertEquals(Integer.MAX_VALUE - 1, high.generate(new DataSource(new byte[4])));
+
+            SplittableRandom rng = new SplittableRandom(27182);
+            for (int i = 0; i < 5000; i++) {
+                byte[] bufA = new byte[4];
+                byte[] bufB = new byte[4];
+                rng.nextBytes(bufA);
+                rng.nextBytes(bufB);
+                if (compareLex(bufA, bufB) > 0) { byte[] t = bufA; bufA = bufB; bufB = t; }
+
+                assertTrue(low.generate(new DataSource(bufA)) <= low.generate(new DataSource(bufB)),
+                        "Monotonicity violation near MIN_VALUE boundary");
+                assertTrue(high.generate(new DataSource(bufA)) <= high.generate(new DataSource(bufB)),
+                        "Monotonicity violation near MAX_VALUE boundary");
+            }
         }
     }
 
@@ -662,6 +738,111 @@ class GeneratorsTest {
                 assertEquals(1, elementSpan.getChildren().size(),
                         "each list-element should nest exactly one child: the element generator's own span");
                 assertEquals("int", elementSpan.getChildren().get(0).getLabel());
+            }
+        }
+
+        /**
+         * D4 says shrink targets are "empty for collections" -- sets()/maps() were never directly
+         * checked for this, only inferred from lists()'s own empty-list test plus reasoning about
+         * how LinkedHashSet/LinkedHashMap behave on an empty input.
+         */
+        @Test
+        @DisplayName("sets()/maps(): all-zero buffer produces an empty collection (D4, inherited from lists())")
+        void setsAndMapsShrinkTargetIsEmpty() {
+            Set<Integer> emptySet = Generators.sets(Generators.integers(0, 100))
+                    .generate(new DataSource(new byte[64]));
+            assertTrue(emptySet.isEmpty(), "sets() must decode an all-zero buffer to an empty set");
+
+            Map<Integer, Integer> emptyMap = Generators.maps(Generators.integers(0, 100), Generators.integers(0, 100))
+                    .generate(new DataSource(new byte[64]));
+            assertTrue(emptyMap.isEmpty(), "maps() must decode an all-zero buffer to an empty map");
+        }
+    }
+
+    // ========================= Deep Nesting Stress Test (Part 2 audit) =========================
+
+    /**
+     * R1 (span recording) is the project's own "highest risk" register entry, and every existing
+     * span test uses shallow, hand-sized structures. This stresses the SAME mechanism at real
+     * composite depth: a list of lists of optionals of a custom combined type, four generator
+     * layers deep. If span nesting/boundaries ever desynchronized at depth, this is where it would
+     * show first -- shallow structures would still look fine.
+     */
+    @Nested
+    @DisplayName("Span tree integrity under deep composite nesting")
+    class DeepNesting {
+
+        private record Point(int x, int y) { }
+
+        @Test
+        @DisplayName("list<list<optional<combine>>>: every level nests correctly, with no overlapping or out-of-bounds spans")
+        void deeplyNestedCompositeProducesCorrectlyNestedNonOverlappingSpanTree() {
+            Generator<Point> point = Generators.combine(
+                    Generators.integers(-10, 10), Generators.integers(-10, 10), Point::new);
+            Generator<Point> optionalPoint = Generators.optionals(point);
+            // Fixed sizes throughout: avoids the harmless-but-noisy terminator span (see
+            // listSpanTreeNestsElementSpansCorrectly above) so the shape is exact and predictable.
+            Generator<List<Point>> innerList = Generators.lists(optionalPoint, 2, 2);
+            Generator<List<List<Point>>> outerList = Generators.lists(innerList, 2, 2);
+
+            // Try several seeds so both "optional present" and "optional absent" branches get
+            // exercised across runs -- the structural assertions below tolerate either.
+            for (long seed = 1; seed <= 20; seed++) {
+                DataSource ds = new DataSource(seed);
+                outerList.generate(ds);
+                ds.freeze();
+
+                List<Span> roots = ds.getRootSpans();
+                assertEquals(1, roots.size());
+                Span outer = roots.get(0);
+                assertEquals("list", outer.getLabel());
+                assertEquals(2, outer.getChildren().size());
+
+                for (Span outerElement : outer.getChildren()) {
+                    assertEquals("list-element", outerElement.getLabel());
+                    assertEquals(1, outerElement.getChildren().size());
+                    Span inner = outerElement.getChildren().get(0);
+                    assertEquals("list", inner.getLabel());
+                    assertEquals(2, inner.getChildren().size());
+
+                    for (Span innerElement : inner.getChildren()) {
+                        assertEquals("list-element", innerElement.getLabel());
+                        assertEquals(1, innerElement.getChildren().size());
+                        Span optionalSpan = innerElement.getChildren().get(0);
+                        assertEquals("optional", optionalSpan.getLabel());
+                        assertTrue(optionalSpan.getChildren().size() <= 1,
+                                "optional should have 0 children (absent) or 1 (present)");
+
+                        for (Span combineSpan : optionalSpan.getChildren()) {
+                            assertEquals("combine", combineSpan.getLabel());
+                            assertEquals(2, combineSpan.getChildren().size());
+                            assertEquals("int", combineSpan.getChildren().get(0).getLabel());
+                            assertEquals("int", combineSpan.getChildren().get(1).getLabel());
+                        }
+                    }
+                }
+
+                assertSpanTreeIntegrity(outer);
+            }
+        }
+
+        /**
+         * Recursively verifies the R1 nesting discipline at every level: each child starts no
+         * earlier than the previous sibling ended (non-overlapping, in order) and ends no later
+         * than its parent (fully contained) -- the exact property span deletion depends on to
+         * safely remove one element without corrupting anything else in the buffer.
+         */
+        private void assertSpanTreeIntegrity(Span span) {
+            int cursor = span.getStart();
+            for (Span child : span.getChildren()) {
+                assertTrue(child.getStart() >= cursor,
+                        "Child span [" + child.getStart() + "," + child.getEnd()
+                                + ") must not start before the previous sibling ended (cursor=" + cursor + ")");
+                assertTrue(child.getEnd() <= span.getEnd(),
+                        "Child span [" + child.getStart() + "," + child.getEnd()
+                                + ") must be fully contained within parent's [" + span.getStart() + "," + span.getEnd() + ")");
+                cursor = child.getEnd();
+                assertSpanTreeIntegrity(child);
             }
         }
     }

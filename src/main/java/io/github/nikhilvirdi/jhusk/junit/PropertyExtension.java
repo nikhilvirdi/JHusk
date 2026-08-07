@@ -85,8 +85,21 @@ public class PropertyExtension implements TestTemplateInvocationContextProvider 
                 return new ArgsHolder(args);
             };
 
-            // 3. Configure the JHusk Property runner
-            String propName = propAnnotation.name().isBlank() ? null : propAnnotation.name();
+            // 3. Configure the JHusk Property runner.
+            //
+            // Property identity MUST be derived here, from the reflective Method, rather than
+            // left blank to fall back on Property.resolvePropertyId()'s stack-walk. That fallback
+            // finds the first stack frame whose class isn't Property itself -- but every @Property
+            // method is invoked through this exact call site, so the "first non-Property frame"
+            // is ALWAYS this PropertyInterceptor, never the user's test method. Left blank, every
+            // unnamed @Property method in an entire project collides onto one shared
+            // ".jhusk/io.github.nikhilvirdi.jhusk.junit.PropertyExtension...bytes" file, silently
+            // overwriting each other's stored failures. Deriving the identity directly from the
+            // reflected method is both the fix and strictly more reliable than a stack walk ever
+            // was for this path.
+            String propName = propAnnotation.name().isBlank()
+                ? method.getDeclaringClass().getName() + "." + method.getName()
+                : propAnnotation.name();
             io.github.nikhilvirdi.jhusk.Property<ArgsHolder> runner = io.github.nikhilvirdi.jhusk.Property.forAll(
                 propName, holderGen, holder -> {
                     try {

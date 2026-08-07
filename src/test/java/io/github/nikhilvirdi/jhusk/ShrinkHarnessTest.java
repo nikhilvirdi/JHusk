@@ -1,5 +1,6 @@
 package io.github.nikhilvirdi.jhusk;
 
+import io.github.nikhilvirdi.jhusk.internal.DataSource;
 import io.github.nikhilvirdi.jhusk.internal.ShrinkHarness;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -149,6 +150,47 @@ class ShrinkHarnessTest {
             byte[] crashBuffer = { 0, 0, 0, 42 };
 
             assertFalse(harness.tryBuffer(crashBuffer), "Must reject if exception class differs");
+        }
+
+        /**
+         * Regression test for a bug found during the final pre-release audit: the "generator
+         * itself crashed" branch of tryBuffer accepted a candidate purely by exception-class
+         * match, without ever checking source.getStatus() -- unlike the assertion-failure branch
+         * a few lines below, which correctly requires VALID status first. A custom generator that
+         * validates internally and throws on OVERRUN (a plausible pattern, not a contrived one)
+         * could therefore have its OVERRUN-induced exception accepted as a "reproduction" of the
+         * real bug whenever the two exception classes happened to coincide, violating R4's
+         * explicit guard ("never accept a candidate whose status is OVERRUN or INVALID").
+         * Confirmed empirically before the fix: tryBuffer(truncated) returned true here.
+         */
+        @Test
+        @DisplayName("Rejects a candidate whose generator crashes due to OVERRUN, even if the exception class happens to match")
+        void rejectsOverrunInducedCrashEvenWhenExceptionClassMatches() {
+            // Throws IllegalStateException specifically when (and only when) the buffer overran --
+            // the SAME exception class as the "real" failure condition below, but for an unrelated
+            // reason.
+            Generator<Integer> adversarial = source -> {
+                int val = source.drawInt();
+                if (source.getStatus() == DataSource.Status.OVERRUN) {
+                    throw new IllegalStateException("ran out of bytes");
+                }
+                return val;
+            };
+
+            ShrinkHarness<Integer> harness = new ShrinkHarness<>(
+                    adversarial,
+                    val -> {
+                        if (val >= 100) throw new IllegalStateException("value too large: " + val);
+                    },
+                    IllegalStateException.class
+            );
+
+            // drawInt() needs 4 bytes; this buffer has 1 -> OVERRUN -> adversarial throws.
+            byte[] truncated = { 0 };
+
+            assertFalse(harness.tryBuffer(truncated),
+                    "An OVERRUN-induced crash must never be accepted as a valid shrink candidate (R4), "
+                            + "even when its exception class coincidentally matches the original failure's");
         }
     }
 

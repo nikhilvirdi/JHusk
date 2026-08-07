@@ -51,20 +51,21 @@ public class ShrinkHarness<T> {
     }
 
     /**
-     * Immutable wrapper for byte[] that implements value-based equals and hashCode,
-     * so it can be safely used as a key in Sets/Maps without array copying or string allocation.
+     * Immutable wrapper for byte[] that implements value-based equals and hashCode, so it can be
+     * safely used as a key in Sets/Maps without array copying or string allocation.
+     *
+     * <p>Package-private: this is purely an implementation detail of {@link #attempted}'s
+     * dedup tracking below, with no reason to be constructed or referenced from outside this
+     * class -- narrower visibility than {@link ShrinkHarness} itself, which some tests reference
+     * directly for white-box testing.
      */
-    public static final class BufferKey {
+    static final class BufferKey {
         private final byte[] bytes;
         private final int hashCode;
 
-        public BufferKey(byte[] bytes) {
+        BufferKey(byte[] bytes) {
             this.bytes = bytes;
             this.hashCode = Arrays.hashCode(bytes);
-        }
-
-        public byte[] getBytes() {
-            return bytes;
         }
 
         @Override
@@ -145,7 +146,15 @@ public class ShrinkHarness<T> {
         } catch (Throwable t) {
             // The generator itself crashed on this buffer (not the assertion).
             // Unless this crash *was* the original failure we are shrinking, reject it.
-            boolean accepted = t.getClass().equals(originalFailureClass);
+            //
+            // Also require VALID status here (R4): a generator can throw on OVERRUN/INVALID
+            // garbage for reasons unrelated to the real bug -- e.g. a custom generator that
+            // validates its own drawn value and throws when the buffer ran out. Without this
+            // check, an exception class that happens to coincide with originalFailureClass would
+            // be accepted as a "reproduction" even though it was only ever exercising zero-padded
+            // OVERRUN bytes, not a genuine minimal failing case.
+            boolean accepted = source.getStatus() == DataSource.Status.VALID
+                    && t.getClass().equals(originalFailureClass);
             if (accepted) {
                 lastAcceptedRootSpans = source.getRootSpans();
             }
