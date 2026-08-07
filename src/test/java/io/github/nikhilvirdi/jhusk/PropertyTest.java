@@ -1,39 +1,41 @@
 package io.github.nikhilvirdi.jhusk;
 
-import io.github.nikhilvirdi.jhusk.internal.DataSource;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("Property Runner tests (Generate-and-Check)")
+@DisplayName("Property Runner tests (Generate, Check & Failure Reporting)")
 class PropertyTest {
 
-    @Test
-    @DisplayName("Buggy property fails within N examples and reports raw falsifying value")
-    void buggyPropertyFails() {
-        Generator<Integer> gen = Generators.integers();
+    private static final Path FAILURE_DIR = Path.of(".jhusk");
+    private static final String FAILURE_PREFIX = "io.github.nikhilvirdi.jhusk.PropertyTest";
 
-        // Property: "All integers are less than 1,000,000" (deliberately buggy)
-        AssertionError error = assertThrows(AssertionError.class, () -> {
-            Property.forAll(gen, value -> {
-                assertTrue(value < 1000000, "Value " + value + " is >= 1,000,000");
-            }).check(42L); // Fixed master seed for reproducible test
-        });
-
-        String message = error.getMessage();
-        System.out.println("--- RAW FAILURE OUTPUT (DELIBERATELY UGLY) ---");
-        System.out.println(message);
-        System.out.println("----------------------------------------------");
-
-        assertTrue(message.contains("Falsifying example found"), "Message should mention falsifying example");
-        assertTrue(message.contains("Seed:"), "Message should contain the failing seed");
-        assertTrue(message.contains("Value:"), "Message should contain the raw failing value");
-        assertTrue(message.contains("Value ") && message.contains(" is >= 1,000,000"), "Message should contain the assertion error");
+    @BeforeEach
+    @AfterEach
+    void clearStoredFailures() throws IOException {
+        if (Files.isDirectory(FAILURE_DIR)) {
+            try (var files = Files.list(FAILURE_DIR)) {
+                files.filter(file -> file.getFileName().toString().startsWith(FAILURE_PREFIX))
+                     .forEach(file -> {
+                         try {
+                             Files.deleteIfExists(file);
+                         } catch (IOException e) {
+                             throw new java.io.UncheckedIOException(e);
+                         }
+                     });
+            }
+        }
     }
 
     @Test
@@ -59,7 +61,6 @@ class PropertyTest {
 
         AssertionError error = assertThrows(AssertionError.class, () -> {
             Property.forAll(gen, value -> {
-                // This block should never be reached for a valid element
                 assertTrue(true);
             }).check(123L);
         });
@@ -70,37 +71,117 @@ class PropertyTest {
             "Message should clarify too many invalid runs occurred");
     }
 
-    @Test
-    @DisplayName("Failing buffer can be replayed to reproduce the exact same failing value")
-    void failingBufferRoundTrips() {
-        Generator<Integer> gen = Generators.integers();
+    @Nested
+    @DisplayName("Phase 13 Failure Reporting & Reproduction Tests")
+    class FailureReporting {
 
-        // Property that fails on specific negative numbers
-        AssertionError error = assertThrows(AssertionError.class, () -> {
-            Property.forAll(gen, value -> {
-                assertTrue(value >= -100, "Value " + value + " is less than -100");
-            }).check(456L);
-        });
+        @Test
+        @DisplayName("Failing property report contains minimal shrunk value, seed, and reproduction instruction")
+        void reportContainsShrunkValueSeedAndReproduction() {
+            Generator<Integer> gen = Generators.integers();
 
-        // The error message format embeds the seed. Let's parse it out to replay.
-        String msg = error.getMessage();
-        String seedStr = msg.substring(msg.indexOf("Seed: ") + 6, msg.indexOf("L\n", msg.indexOf("Seed: ")));
-        long failingSeed = Long.parseLong(seedStr);
+            AssertionError error = assertThrows(AssertionError.class, () -> {
+                Property.forAll(gen, value -> {
+                    assertTrue(value < 1000000, "Value " + value + " is >= 1,000,000");
+                }).check(42L);
+            });
 
-        // Replay generation from that exact seed
-        DataSource replaySource = new DataSource(failingSeed);
-        int reproducedValue = gen.generate(replaySource);
-        
-        // Find what the original value was
-        String valueStr = msg.substring(msg.indexOf("Value: ") + 7, msg.indexOf("\n\nException:"));
-        int originalValue = Integer.parseInt(valueStr);
+            String message = error.getMessage();
+            System.out.println("--- PHASE 13 UPGRADED FAILURE REPORT ---");
+            System.out.println(message);
+            System.out.println("----------------------------------------");
 
-        assertEquals(originalValue, reproducedValue, 
-            "Replaying from the captured seed must reproduce the exact same value");
-            
-        // And it should indeed fail the property check again
-        assertThrows(AssertionError.class, () -> {
-            assertTrue(reproducedValue >= -100, "Value " + reproducedValue + " is less than -100");
-        });
+            assertTrue(message.contains("Property Falsified!"), "Report header present");
+            assertTrue(message.contains("Falsifying (shrunk) value:"), "Shrunk value header present");
+            assertTrue(message.contains("1000000"), "Minimal shrunk value (1000000) present in report");
+            assertTrue(message.contains("Seed: 42L"), "Literal seed present in report");
+            assertTrue(message.contains("To reproduce this exact failure, run: check(42L)"), 
+                "Explicit copy-pasteable reproduction instructions present");
+        }
+
+        @Test
+        @DisplayName("Original exception is preserved as the cause of AssertionError")
+        void originalExceptionIsPreservedAsCause() {
+            Generator<Integer> gen = Generators.integers();
+            RuntimeException originalException = new RuntimeException("Custom assertion breakdown");
+
+            AssertionError error = assertThrows(AssertionError.class, () -> {
+                Property.forAll(gen, value -> {
+                    if (value > 100) {
+                        throw originalException;
+                    }
+                }).check(55L);
+            });
+
+            assertNotNull(error.getCause(), "Original exception must be preserved as cause");
+            assertSame(originalException, error.getCause(), "Cause must be exact original exception instance");
+        }
+
+        @Test
+        @DisplayName("Before/after section distinctly displays both original raw and shrunk values")
+        void beforeAndAfterSectionsDistinct() {
+            Generator<Integer> gen = Generators.integers();
+
+            AssertionError error = assertThrows(AssertionError.class, () -> {
+                Property.forAll(gen, value -> {
+                    assertTrue(value < 1000000);
+                }).check(42L);
+            });
+
+            String msg = error.getMessage();
+            assertTrue(msg.contains("Falsifying (shrunk) value:"), "Distinct shrunk value section present");
+            assertTrue(msg.contains("Original (unshrunk) value:"), "Distinct original value section present");
+
+            // Extract shrunk value
+            String shrunkPart = msg.substring(msg.indexOf("Falsifying (shrunk) value:") + 26, msg.indexOf("Original (unshrunk) value:")).trim();
+            // Extract original value
+            String origPart = msg.substring(msg.indexOf("Original (unshrunk) value:") + 26, msg.indexOf("Reproduction:")).trim();
+
+            assertEquals("1000000", shrunkPart, "Shrunk value is 1000000");
+            assertNotEquals(shrunkPart, origPart, "Original raw value differs from shrunk value");
+        }
+
+        @Test
+        @DisplayName("Execution statistics (examples run, invalid runs, shrink attempts) are accurate")
+        void executionStatisticsAccurate() {
+            Generator<Integer> gen = Generators.integers();
+
+            AssertionError error = assertThrows(AssertionError.class, () -> {
+                Property.forAll(gen, value -> {
+                    assertTrue(value < 1000000);
+                }).check(42L);
+            });
+
+            String msg = error.getMessage();
+            assertTrue(msg.contains("Execution Statistics:"), "Execution statistics section present");
+            assertTrue(msg.contains("Examples run: 1"), "Examples run count accurate");
+            assertTrue(msg.contains("Invalid runs: 0"), "Invalid runs count accurate");
+            assertTrue(msg.contains("Shrink attempts:"), "Shrink attempts present");
+
+            // Extract shrink attempts count
+            String shrinkStr = msg.substring(msg.indexOf("Shrink attempts: ") + 17, msg.indexOf("\n\nOriginal Exception:")).trim();
+            int shrinkAttempts = Integer.parseInt(shrinkStr);
+            assertTrue(shrinkAttempts > 0, "Shrink attempts count should be greater than zero");
+        }
+
+        @Test
+        @DisplayName("Failing property master seed reproduces the exact same property failure when re-run")
+        void masterSeedReproductionRoundTrips() {
+            Generator<Integer> gen = Generators.integers();
+            long masterSeed = 777L;
+
+            // First run
+            AssertionError error1 = assertThrows(AssertionError.class, () -> {
+                Property.forAll(gen, value -> assertTrue(value < 500)).check(masterSeed);
+            });
+
+            // Second run with identical master seed
+            AssertionError error2 = assertThrows(AssertionError.class, () -> {
+                Property.forAll(gen, value -> assertTrue(value < 500)).check(masterSeed);
+            });
+
+            assertEquals(error1.getMessage(), error2.getMessage(), 
+                "Running check(masterSeed) twice must produce the exact identical failure report");
+        }
     }
 }

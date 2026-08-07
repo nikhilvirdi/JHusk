@@ -16,3 +16,6 @@ Thumbs.db
 
 # Internal planning docs — not for public repo
 WORKPLAN.md
+
+# Local test failure persistence run artifacts
+.jhusk/

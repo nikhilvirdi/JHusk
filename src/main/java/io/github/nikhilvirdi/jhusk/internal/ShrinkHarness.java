@@ -3,7 +3,9 @@ package io.github.nikhilvirdi.jhusk.internal;
 import io.github.nikhilvirdi.jhusk.Generator;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -86,6 +88,7 @@ public class ShrinkHarness<T> {
     private final Set<BufferKey> attempted = new HashSet<>();
     private final int maxAttempts;
     private int attempts = 0;
+    private List<Span> lastAcceptedRootSpans = Collections.emptyList();
 
     /**
      * Constructs a ShrinkHarness.
@@ -142,11 +145,15 @@ public class ShrinkHarness<T> {
         } catch (Throwable t) {
             // The generator itself crashed on this buffer (not the assertion).
             // Unless this crash *was* the original failure we are shrinking, reject it.
-            return t.getClass().equals(originalFailureClass);
+            boolean accepted = t.getClass().equals(originalFailureClass);
+            if (accepted) {
+                lastAcceptedRootSpans = source.getRootSpans();
+            }
+            return accepted;
         }
 
-        if (source.getStatus() == DataSource.Status.INVALID) {
-            // The generator explicitly rejected this value (e.g. via a filter). Reject per R4.
+        if (source.getStatus() != DataSource.Status.VALID) {
+            // Explicit rejections and replay overruns are never valid shrink candidates.
             return false;
         }
 
@@ -158,7 +165,11 @@ public class ShrinkHarness<T> {
             // The assertion failed. Check if it's the SAME kind of failure.
             // We match by class only, not message, because messages contain dynamic
             // values that shrink (e.g., "Expected < 10 but was 99").
-            return t.getClass().equals(originalFailureClass);
+            boolean accepted = t.getClass().equals(originalFailureClass);
+            if (accepted) {
+                lastAcceptedRootSpans = source.getRootSpans();
+            }
+            return accepted;
         }
     }
 
@@ -167,5 +178,13 @@ public class ShrinkHarness<T> {
      */
     public int getAttempts() {
         return attempts;
+    }
+
+    /**
+     * Returns spans from the most recently accepted candidate. This metadata is
+     * captured by {@link #tryBuffer(byte[])}, so callers never replay candidates.
+     */
+    public List<Span> getLastAcceptedRootSpans() {
+        return lastAcceptedRootSpans;
     }
 }
