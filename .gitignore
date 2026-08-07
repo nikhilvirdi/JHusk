@@ -1,5 +1,18 @@
+# Build output
 target/
-.idea/
-*.class
-*.iml
 out/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Compiled classes
+*.class
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Internal planning docs — not for public repo
+WORKPLAN.md
