@@ -14,7 +14,12 @@ import java.util.stream.Stream;
 
 /**
  * JUnit 5 Extension that powers the {@link Property} and {@link ForAll} annotations.
- * 
+ *
+ * <p><b>Not intended for direct use.</b> {@code @Property} already applies this extension via
+ * {@code @ExtendWith(PropertyExtension.class)}; user code should never construct or reference
+ * this class directly. It is {@code public} only because JUnit 5's extension SPI requires
+ * classes named in {@code @ExtendWith} to be public with a public no-arg constructor.
+ *
  * <p>This extension provides a single test template context that internally runs the
  * entire property check loop (generation, invalid budgeting, shrinking, persistence).
  * This ensures that failures are reported cleanly as a single JUnit test failure,
@@ -111,11 +116,39 @@ public class PropertyExtension implements TestTemplateInvocationContextProvider 
         private Generator<Object> resolveGenerator(Parameter param, Object testInstance) throws Exception {
             ForAll forAll = param.getAnnotation(ForAll.class);
             if (!forAll.value().isBlank()) {
-                // Explicit override via factory method
+                // Explicit override via factory method. Every failure mode here is rewrapped with
+                // a JHusk-specific message instead of letting a raw reflection exception surface,
+                // since this is exactly the "did I wire up @ForAll correctly" misuse scenario a
+                // user is most likely to hit while first writing a custom generator factory.
                 String methodName = forAll.value();
-                Method factory = testInstance.getClass().getDeclaredMethod(methodName);
+                Method factory;
+                try {
+                    factory = testInstance.getClass().getDeclaredMethod(methodName);
+                } catch (NoSuchMethodException e) {
+                    throw new IllegalStateException(
+                        "@ForAll(\"" + methodName + "\") on a parameter of '"
+                        + param.getDeclaringExecutable().getName() + "' could not find a no-argument method "
+                        + "named '" + methodName + "' in " + testInstance.getClass().getName()
+                        + ". The referenced method must be static, take no arguments, and return a Generator<T>.",
+                        e);
+                }
                 factory.setAccessible(true);
-                return (Generator<Object>) factory.invoke(testInstance);
+
+                Object result;
+                try {
+                    result = factory.invoke(testInstance);
+                } catch (InvocationTargetException e) {
+                    throw new IllegalStateException(
+                        "The generator factory method '" + methodName + "' referenced by @ForAll(\"" + methodName
+                        + "\") threw an exception while building its Generator.", e.getCause());
+                }
+                if (!(result instanceof Generator)) {
+                    throw new IllegalStateException(
+                        "The generator factory method '" + methodName + "' referenced by @ForAll(\"" + methodName
+                        + "\") must return a Generator<T>, but returned "
+                        + (result == null ? "null" : result.getClass().getName()) + ".");
+                }
+                return (Generator<Object>) result;
             }
 
             // Type-based inference fallback

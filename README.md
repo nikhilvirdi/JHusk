@@ -64,17 +64,29 @@ Once JHusk finds a failing input, it saves the byte stream that produced it to a
 
 ## Usage
 
-The examples below show how the finished API is meant to work. Husk doesn't exist as compiled code yet, this section is the target the implementation is being built against, not a description of something already running.
+The examples below are real, compiled code, not aspirational API sketches — each one is backed by
+a test in `ReadmeExamplesTest` that runs the exact sample shown and fails the build if it ever
+stops compiling or behaving as documented.
 
 ### A minimal property
 ```java
+static Generator<List<Integer>> integerLists() {
+    return Generators.lists(Generators.integers());
+}
+
 @Property
-void reversingTwiceReturnsTheOriginalList(@ForAll List<Integer> list) {
-    List<Integer> reversed = reverse(reverse(list));
+void reversingTwiceReturnsTheOriginalList(@ForAll("integerLists") List<Integer> list) {
+    List<Integer> reversed = new ArrayList<>(list);
+    Collections.reverse(reversed);
+    Collections.reverse(reversed);
     assertEquals(list, reversed);
 }
 ```
-JHusk generates hundreds of lists, including empty ones, single-element ones, and ones with duplicates, and checks this assertion against every one of them.
+JHusk generates a hundred lists by default, including empty ones, single-element ones, and ones
+with duplicates, and checks this assertion against every one of them. Note the explicit
+`@ForAll("integerLists")`, pointing at a static generator factory, rather than a bare `@ForAll`:
+generic types like `List<Integer>` are erased at runtime, so JHusk can't infer a generator for one
+automatically the way it can for `int`, `long`, `double`, `char`, `boolean`, or `String`.
 
 ### Composing generators
 ```java
@@ -87,17 +99,25 @@ Generator<Point> points = Generators.combine(
 This builds a generator for a custom `Point` type out of two integer generators, with no manual randomness or bounds-checking code required.
 
 ### A shrunk failure, before and after
-A property fails on a large, arbitrary input:
+A property asserting no list element exceeds 10 fails on a 50-element list of random positive integers:
 ```
-Falsifying example: list = [47, -3, 0, 19238, -1, 6, 6, -99999, ...]  (40 elements)
+Falsifying (shrunk) value:
+  [11]
+
+Original (unshrunk) value:
+  [20695, 93362, 75080, 76371, 24401, 59448, 37393, 33853, 92859, 71806, 57184, 5120, 93123, 66524, 49239, 72997, 44345, 78011, 81261, 90943, 94231, 241, 38550, 2132, 86408, 84489, 35148, 44128, 6509, 32739, 89240, 38170, 79299, 82341, 87827, 53812, 26419, 4008, 82162, 90492, 39560, 41511, 9374, 81070, 59640, 49457, 10115, 77172, 92012, 95741]
 ```
-JHusk searches for a smaller version that still fails, and reports the minimal case:
-```
-Shrunk to: list = [0, 0]
-```
+JHusk searches for a smaller version that still fails, and reports the minimal case: a 50-element mess shrinks to a single element, `11`, one past the boundary the property actually cares about. The full failure report also includes the reproduction seed, execution statistics, and the original exception — see `ReadmeExamplesTest.capturesRealShrinkReportForReadme` for the complete, unedited output.
 
 ### JUnit 5 integration
-Properties run alongside regular `@Test` methods, appear in the same test reports, and behave like any other JUnit 5 test as far as your build and CI setup are concerned.
+Properties run alongside regular `@Test` methods, appear in the same test reports, and behave like any other JUnit 5 test as far as your build and CI setup are concerned. A `@Property` method shows up as a single test — not one per generated example — that internally runs JHusk's full generate/check/shrink loop and fails with the shrunk report above if any example falsifies it.
+
+## Thread-safety
+
+- **`Generator<T>`** (including everything `Generators` returns, and anything built from `map`/`filter`/`flatMap`/`combine`) holds no mutable state of its own and is safe to share and reuse across threads, as long as each thread supplies its own `DataSource`.
+- **`DataSource`** is not thread-safe and must never be shared across threads. This is rarely something you need to think about directly: `Property.check()` creates a fresh `DataSource` per generated example, and you'd only construct one yourself if writing a custom `Generator` from scratch.
+- **`Property<T>`** is a mutable builder. Configure an instance (`named`, `examples`, `withStorageDir`, etc.) on one thread before calling `check()`; don't mutate its configuration concurrently with a `check()` call, and don't call `check()` concurrently on the same instance from multiple threads.
+- Running `check()` concurrently across *different* `Property` instances is safe **unless** they share both a failure-storage directory and a property identity (explicit name, or auto-detected from the same call site) — failure persistence performs unsynchronized file I/O, so concurrent writes to the same `.jhusk/<id>.bytes` file can race. Distinct identities or storage directories are unaffected.
 
 ## How JHusk differs from jqwik
 

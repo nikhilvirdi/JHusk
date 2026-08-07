@@ -21,6 +21,19 @@ import java.util.function.Consumer;
  * <p>Supports failure persistence: on failure, the minimal shrunk byte buffer is saved
  * to {@code .jhusk/}. Subsequent property runs replay stored failures first, surfacing
  * regressions immediately before generating new random examples.
+ *
+ * <p><b>Thread-safety:</b> {@code Property<T>} is a mutable builder — {@link #named}, {@link
+ * #examples(int)}, {@link #withStorageDir(Path)}, and {@link #withFailureStorage} all mutate
+ * instance state with no synchronization. Build and configure a {@code Property} instance on a
+ * single thread, then call {@link #check()}/{@link #check(long)}; do not mutate its configuration
+ * concurrently with a {@code check()} call, and do not call {@code check()} concurrently from
+ * multiple threads on the same instance. {@code check()} itself creates a fresh, thread-local
+ * {@link DataSource} for every example, so it does not race against itself internally — the one
+ * exception is failure persistence: two {@code check()} calls (whether on the same or different
+ * {@code Property} instances) that share both a storage directory and a property identity will
+ * race on the same {@code .jhusk/<id>.bytes} file, since {@link
+ * io.github.nikhilvirdi.jhusk.internal.FailureStorage} performs unsynchronized file I/O. Distinct
+ * identities, or distinct storage directories, are safe to run concurrently.
  */
 public final class Property<T> {
 
@@ -69,7 +82,10 @@ public final class Property<T> {
 
     /**
      * Assigns an explicit identity name to this property for persistent failure tracking.
-     * Recommended over auto-detection to survive code refactoring.
+     * Recommended over auto-detection (see {@link #resolvePropertyId()}) to survive refactoring.
+     *
+     * @param name the explicit property identity, used as the {@code .jhusk/<name>.bytes} filename
+     * @return this instance, for fluent chaining
      */
     public Property<T> named(String name) {
         this.name = name;
@@ -77,7 +93,15 @@ public final class Property<T> {
     }
 
     /**
-     * Sets the storage directory for failure persistence (primarily for testing).
+     * Points failure persistence at a custom directory instead of the default {@code .jhusk/}.
+     *
+     * <p>Not reachable from the {@code @Property} JUnit annotation, which always uses the
+     * default directory — this is for direct {@code Property.forAll(...)} usage, most commonly
+     * to isolate a test's failure storage into a temporary directory (see {@code FailurePersistenceTest}
+     * for the pattern).
+     *
+     * @param storageDir the directory where failure buffers will be read from and written to
+     * @return this instance, for fluent chaining
      */
     public Property<T> withStorageDir(Path storageDir) {
         this.failureStorage = new FailureStorage(storageDir);
@@ -85,7 +109,15 @@ public final class Property<T> {
     }
 
     /**
-     * Sets the FailureStorage instance (primarily for testing).
+     * Sets the exact {@link FailureStorage} instance to use for failure persistence.
+     *
+     * <p>{@code FailureStorage} lives in JHusk's {@code internal} package; most callers should
+     * prefer {@link #withStorageDir(Path)}, which only requires a {@link Path} and covers the
+     * common case (redirecting storage location, e.g. for test isolation) without depending on
+     * an internal type directly.
+     *
+     * @param storage the failure storage instance to use
+     * @return this instance, for fluent chaining
      */
     public Property<T> withFailureStorage(FailureStorage storage) {
         this.failureStorage = storage;
@@ -95,6 +127,9 @@ public final class Property<T> {
     /**
      * Sets the number of successful examples required for the property to pass.
      * Default is 100.
+     *
+     * @param examples the number of successful examples to require
+     * @return this instance, for fluent chaining
      */
     public Property<T> examples(int examples) {
         this.examples = examples;
@@ -103,6 +138,12 @@ public final class Property<T> {
 
     /**
      * Checks the property using a randomly chosen master seed.
+     *
+     * <p>Equivalent to {@code check(new SplittableRandom().nextLong())}: replays any stored
+     * failure first (see {@link #check(long)}), then generates fresh random examples if none is
+     * stored or the stored one no longer reproduces.
+     *
+     * @throws AssertionError if a falsifying example is found, or if the invalid budget is exhausted
      */
     public void check() {
         check(new SplittableRandom().nextLong());

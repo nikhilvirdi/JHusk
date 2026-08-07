@@ -74,6 +74,13 @@ import java.util.function.Predicate;
  * buffer is guaranteed to produce simpler values, so the shrinker can minimize failing test
  * cases by systematically reducing the byte buffer.
  *
+ * <p><b>Thread-safety:</b> every {@code Generator} returned by {@link Generators} (and any
+ * composition built from {@link #map}, {@link #filter}, {@link #flatMap}) holds no mutable
+ * instance state of its own — its behavior is entirely determined by the {@link DataSource}
+ * passed to {@link #generate(DataSource)}. A single {@code Generator} instance can safely be
+ * shared and reused across threads, provided each thread supplies its own {@code DataSource} and
+ * never shares one. {@code DataSource} itself is not thread-safe; see its class documentation.
+ *
  * @param <T> the type of value this generator produces
  */
 @FunctionalInterface

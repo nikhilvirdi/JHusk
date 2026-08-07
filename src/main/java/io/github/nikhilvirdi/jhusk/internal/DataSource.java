@@ -25,6 +25,16 @@ import java.util.SplittableRandom;
  * Calls to {@link #startSpan(String)} and {@link #endSpan()} structure flat byte draws into a tree of
  * {@link Span} nodes. This metadata lets JHusk's shrinker delete semantically coherent byte regions
  * (e.g. an element in a collection) rather than raw arbitrary byte offsets.
+ * <p>
+ * <b>Thread-safety:</b><br>
+ * A {@code DataSource} instance is <em>not</em> thread-safe. Its cursor position, span stack,
+ * frozen flag, status, and recording buffer are all plain mutable fields with no synchronization.
+ * Every {@code Property.check()} run and every {@code ShrinkHarness.tryBuffer(byte[])} evaluation
+ * constructs its own fresh {@code DataSource}, and that is the only supported usage pattern:
+ * one {@code DataSource} per single-threaded generation/replay pass, never shared or reused
+ * across threads. This is why {@code Generator} implementations (which only ever receive a
+ * {@code DataSource} as a method parameter, never store one) can themselves be safely shared
+ * across threads — see {@code Generator}'s own thread-safety note.
  */
 public class DataSource {
 

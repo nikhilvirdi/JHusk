@@ -10,10 +10,13 @@ import java.lang.annotation.Target;
 
 /**
  * Marks a method as a JHusk property-based test.
- * 
- * <p>This annotation acts as a JUnit 5 {@link TestTemplate}, allowing the test
- * to be invoked multiple times with generated arguments or to report a single
- * minimal shrunk failure natively through JUnit.
+ *
+ * <p>This annotation makes the method a JUnit 5 {@link TestTemplate} powered by
+ * {@link PropertyExtension}. It appears as a single JUnit test — one "Property Check"
+ * invocation, not one per example — which internally runs JHusk's own generate/check/shrink
+ * loop, invoking the annotated method up to {@link #examples()} times with generated arguments.
+ * A failure at any point is reported as that one JUnit test failing, with the Phase 13 shrunk
+ * report (falsifying value, reproduction seed, execution statistics) as the failure message.
  */
 @Target({ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)

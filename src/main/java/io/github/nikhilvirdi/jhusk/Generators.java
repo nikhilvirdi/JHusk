@@ -426,7 +426,11 @@ public final class Generators {
     static final int DEFAULT_LIST_MAX_SIZE = 100;
 
     /**
-     * Returns a generator of {@code List<T>} with length in {@code [0, DEFAULT_LIST_MAX_SIZE]}.
+     * Returns a generator of {@code List<T>} with length in {@code [0, 100]}.
+     *
+     * <p>100 is a fixed default chosen to keep generated collections small enough to be readable
+     * in failure reports while still exercising realistic sizes; use
+     * {@link #lists(Generator, int, int)} for an explicit bound.
      *
      * @param elementGen generator for each element
      * @param <T> the element type
@@ -512,6 +516,9 @@ public final class Generators {
      * {@link #lists(Generator)} — a string is just a list of characters, so it inherits D5's
      * continuation-flag encoding and shrink behavior with no separate hand-rolled encoding.
      *
+     * <p>Length follows {@link #lists(Generator)}'s default bound: {@code [0, 100]} characters,
+     * each drawn from {@link #characters()}'s printable ASCII range {@code [' ', '~']}.
+     *
      * @return a string generator
      */
     public static Generator<String> strings() {
@@ -560,12 +567,14 @@ public final class Generators {
      * <p><b>Deduplication:</b> insertion order is preserved and later duplicate elements are
      * dropped — first occurrence wins ({@link LinkedHashSet}'s standard behavior).
      *
-     * <p><b>Interaction with shrinking (future Phases 11-12, noted here for reference):</b>
-     * deduplication happens after the list is decoded, so the <em>set's</em> size is not a
-     * direct function of the list buffer's size. Deleting a list element's span that happened
-     * to be a duplicate leaves the set's size unchanged even though the underlying list shrank
-     * by one element — the shrinker must tolerate that "smaller list buffer" doesn't always
-     * imply "smaller set."
+     * <p><b>Interaction with shrinking:</b> deduplication happens after the list is decoded, so
+     * the <em>set's</em> size is not a direct function of the list buffer's size — deleting a
+     * list element's span that happened to be a duplicate leaves the set's size unchanged even
+     * though the underlying list shrank by one element. The shrinker ({@code Shrinker}/
+     * {@code ShrinkHarness}) doesn't need to know this: it only ever re-runs the property
+     * assertion against the fully-decoded {@code Set<T>} and checks whether the same failure
+     * still reproduces, so "smaller list buffer" not always implying "smaller set" is harmless
+     * by construction rather than something shrinking has to special-case.
      *
      * @param elementGen generator for each element
      * @param <T> the element type
@@ -586,9 +595,10 @@ public final class Generators {
      * key's original insertion position — standard {@link Map#put} semantics via
      * {@link LinkedHashMap}.
      *
-     * <p><b>Interaction with shrinking (future Phases 11-12, noted here for reference):</b> as
-     * with {@link #sets(Generator)}, the map's size is not a direct function of the entry list's
-     * size once duplicate keys collapse — the shrinker must tolerate that too.
+     * <p><b>Interaction with shrinking:</b> as with {@link #sets(Generator)}, the map's size is
+     * not a direct function of the entry list's size once duplicate keys collapse. This is
+     * harmless for the same reason: the shrinker only ever observes the fully-decoded
+     * {@code Map<K, V>} through the property assertion, never the intermediate entry list.
      *
      * @param keyGen generator for each key
      * @param valGen generator for each value
