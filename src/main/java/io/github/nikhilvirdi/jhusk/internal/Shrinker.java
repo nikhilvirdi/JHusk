@@ -12,6 +12,8 @@ import java.util.Set;
  * <p>Every candidate is evaluated exclusively through {@link ShrinkHarness}. Spans are
  * structural metadata only; the harness captures replacement metadata when it accepts a
  * candidate, so passes never replay a buffer or make an independent validity decision.</p>
+ *
+ * @param <T> the type of value generated and tested
  */
 public final class Shrinker<T> {
 
@@ -22,11 +24,22 @@ public final class Shrinker<T> {
     private byte[] current;
     private List<Span> rootSpans;
 
+    /**
+     * Constructs a new Shrinker using the provided evaluation harness.
+     *
+     * @param harness the harness used to evaluate shrink candidates
+     */
     public Shrinker(ShrinkHarness<T> harness) {
         this.harness = harness;
     }
 
-    /** Shrinks an already-known failing buffer using spans from the same execution. */
+    /**
+     * Shrinks an already-known failing buffer using spans from the same execution.
+     *
+     * @param failingBuffer the initial failing byte buffer to shrink
+     * @param failingRootSpans the root spans recorded during the initial failing run
+     * @return the minimal shrunk byte buffer
+     */
     public byte[] shrink(byte[] failingBuffer, List<Span> failingRootSpans) {
         current = failingBuffer.clone();
         rootSpans = List.copyOf(failingRootSpans);

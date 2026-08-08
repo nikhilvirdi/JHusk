@@ -25,17 +25,23 @@ import java.lang.annotation.Target;
 public @interface Property {
     /**
      * The number of successful random examples required for the property to pass.
+     *
+     * @return the required number of successful examples (default 100)
      */
     int examples() default 100;
 
     /**
      * An explicit master seed (e.g. "12345L"). If empty, a random seed is used.
+     *
+     * @return the explicit master seed string, or empty string for a random seed
      */
     String seed() default "";
 
     /**
      * An explicit identity name for this property, used for storing and replaying
      * minimal shrunk failures persistently across refactors.
+     *
+     * @return the explicit property identity name, or empty string for auto-detected identity
      */
     String name() default "";
 }

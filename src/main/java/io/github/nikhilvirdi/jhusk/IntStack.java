@@ -15,6 +15,12 @@ public class IntStack {
     private final List<Integer> data = new ArrayList<>();
 
     /**
+     * Constructs a new, empty {@code IntStack}.
+     */
+    public IntStack() {
+    }
+
+    /**
      * Pushes an integer value onto the top of the stack.
      *
      * @param value the integer value to push onto the stack

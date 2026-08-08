@@ -269,7 +269,7 @@ public class DataSource {
     /**
      * Closes the currently active span at the current cursor position.
      * <p>
-     * <b>Stack Discipline & Hierarchy:</b><br>
+     * <b>Stack Discipline &amp; Hierarchy:</b><br>
      * Pops the top span from {@code spanStack} and sets its exclusive ending byte index.
      * <ul>
      *   <li>If {@code spanStack} is now empty, the span is attached to {@code rootSpans}.</li>

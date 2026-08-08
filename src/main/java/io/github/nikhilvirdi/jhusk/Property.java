@@ -33,6 +33,32 @@ import java.util.function.Consumer;
  * each other's stored buffer — but they can still race for which one's failure ends up stored,
  * since one write's atomic rename simply wins outright over the other's. Distinct identities, or
  * distinct storage directories, are entirely unaffected.
+ *
+ * <p><b>Exception semantics:</b> {@code check()} distinguishes two fundamentally different kinds
+ * of "this call did not return normally," deliberately using two different exception types:
+ * <ul>
+ *   <li><b>{@link AssertionError}</b> — a falsifying example was genuinely found: the code under
+ *       test violated the property, whether freshly discovered (with the Phase 13 shrunk report as
+ *       the message) or replayed from a previously stored failure. This mirrors a plain failed
+ *       assertion on purpose — the entire point of a property check is to behave like an assertion
+ *       that ran against many inputs instead of one, and {@code AssertionError} is exactly what a
+ *       reader expects to see for "the thing being tested is wrong." This also matches JUnit
+ *       Jupiter's own convention: {@code org.opentest4j.AssertionFailedError} (thrown by {@code
+ *       assertEquals}, {@code assertTrue}, etc.) is itself an {@code AssertionError} subclass.</li>
+ *   <li><b>{@link PropertyExecutionException}</b> (a {@code RuntimeException}) — the property
+ *       could not be meaningfully checked at all: the invalid-run budget was exhausted (an
+ *       over-restrictive {@code filter(...)}, most commonly), or the generator itself crashed
+ *       while producing an example. Neither is a finding about the code under test — they're
+ *       problems with the test's own setup or a bug in a custom {@link Generator} — so they use an
+ *       ordinary {@code RuntimeException}, catchable by the idiomatic {@code catch (Exception e)}
+ *       or {@code catch (RuntimeException e)}, unlike {@code AssertionError} (a sibling of {@code
+ *       Exception} under {@code Throwable}, deliberately excluded from both). Concretely: {@code
+ *       assertThrows(RuntimeException.class, ...)} around a {@code check()} call will <em>not</em>
+ *       catch a genuine falsification, but <em>will</em> catch invalid-budget exhaustion or a
+ *       generator crash — that split is intentional, not an oversight.</li>
+ * </ul>
+ *
+ * @param <T> the type of value generated and tested
  */
 public final class Property<T> {
 
@@ -159,7 +185,8 @@ public final class Property<T> {
      * failure first (see {@link #check(long)}), then generates fresh random examples if none is
      * stored or the stored one no longer reproduces.
      *
-     * @throws AssertionError if a falsifying example is found, or if the invalid budget is exhausted
+     * @throws AssertionError if a falsifying example is found (see this class's "Exception semantics")
+     * @throws PropertyExecutionException if the invalid-run budget is exhausted or the generator crashes
      */
     public void check() {
         check(new SplittableRandom().nextLong());
@@ -173,7 +200,8 @@ public final class Property<T> {
      * If a stored failure passes, it is automatically pruned from disk.
      * 
      * @param masterSeed the master seed
-     * @throws AssertionError if a falsifying example is found, or if the invalid budget is exhausted
+     * @throws AssertionError if a falsifying example is found (see this class's "Exception semantics")
+     * @throws PropertyExecutionException if the invalid-run budget is exhausted or the generator crashes
      */
     public void check(long masterSeed) {
         String propertyId = resolvePropertyId();
@@ -248,29 +276,66 @@ public final class Property<T> {
         SplittableRandom masterPrng = new SplittableRandom(masterSeed);
         int successfulRuns = 0;
         int invalidRuns = 0;
-        
+        int overrunRuns = 0;
+
         while (successfulRuns < examples) {
             if (invalidRuns > maxInvalidRuns) {
-                throw new AssertionError(String.format(
+                // PropertyExecutionException, not AssertionError: this is "the property couldn't
+                // be meaningfully checked" (a setup problem), not "the property was falsified" --
+                // see this class's "Exception semantics".
+                //
+                // The cause is distinguished so the message doesn't blame filter(...) when every
+                // invalid run was actually a buffer overrun (DataSource.MAX_BUFFER_SIZE, 8192
+                // bytes) -- e.g. Generators.lists(gen, minSize, maxSize) with a minSize/maxSize
+                // and per-element byte width whose product exceeds the buffer cap. That failure
+                // mode has nothing to do with filtering and the old one-size-fits-all message was
+                // actively misleading for it.
+                String reason;
+                if (overrunRuns == invalidRuns) {
+                    reason = String.format(
+                        "Every invalid run exceeded the internal %d-byte generation buffer "
+                        + "(DataSource.MAX_BUFFER_SIZE), not a filter rejection. This means the "
+                        + "generator's minSize/maxSize (or nesting depth) require more bytes per "
+                        + "example than the buffer allows -- e.g. Generators.lists(gen, minSize, maxSize) "
+                        + "where minSize elements alone need more than %d bytes, since the mandatory "
+                        + "prefix cannot stop early. Reduce the bounds, or for genuinely large/bulk "
+                        + "collections write a custom Generator that draws a small seed and fills the "
+                        + "collection with a local PRNG instead of drawing one span per element.",
+                        DataSource.MAX_BUFFER_SIZE, DataSource.MAX_BUFFER_SIZE
+                    );
+                } else if (overrunRuns == 0) {
+                    reason = "This usually means a filter(x -> ...) predicate is too restrictive and rejecting most generated values.";
+                } else {
+                    reason = String.format(
+                        "%d of those were buffer overruns (DataSource.MAX_BUFFER_SIZE, %d bytes) and %d were "
+                        + "explicit rejections (filter(...)/assume(...)). Check both: bounds that require too "
+                        + "many bytes per example, and a predicate that's too restrictive.",
+                        overrunRuns, DataSource.MAX_BUFFER_SIZE, invalidRuns - overrunRuns
+                    );
+                }
+                throw new PropertyExecutionException(String.format(
                     "Property exhausted invalid budget. " +
-                    "Too many invalid runs (%d) were attempted while only completing %d valid runs. " +
-                    "This usually means a filter(x -> ...) predicate is too restrictive and rejecting most generated values.",
+                    "Too many invalid runs (%d) were attempted while only completing %d valid runs. " + reason,
                     invalidRuns, successfulRuns
                 ));
             }
 
             long exampleSeed = masterPrng.nextLong();
             DataSource source = new DataSource(exampleSeed);
-            
+
             T value = null;
             try {
                 value = generator.generate(source);
                 source.freeze();
             } catch (DataSourceOverrunException e) {
                 invalidRuns++;
+                overrunRuns++;
                 continue;
             } catch (Throwable t) {
-                throw new AssertionError("Generator crashed during data generation (seed=" + exampleSeed + ")", t);
+                // PropertyExecutionException, not AssertionError: a generator crashing is a bug in
+                // the generator (or a custom Generator a caller wrote), not a finding about the
+                // code under test -- see this class's "Exception semantics".
+                throw new PropertyExecutionException("Generator crashed during data generation (seed=" + exampleSeed + ")", t);
             }
 
             if (source.getStatus() == DataSource.Status.INVALID) {

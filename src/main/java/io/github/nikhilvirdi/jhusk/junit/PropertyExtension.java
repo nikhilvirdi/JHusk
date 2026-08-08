@@ -27,6 +27,13 @@ import java.util.stream.Stream;
  */
 public class PropertyExtension implements TestTemplateInvocationContextProvider {
 
+    /**
+     * Constructs a new {@code PropertyExtension} instance.
+     * Required by JUnit 5's extension SPI.
+     */
+    public PropertyExtension() {
+    }
+
     @Override
     public boolean supportsTestTemplate(ExtensionContext context) {
         return context.getTestMethod().isPresent() &&
