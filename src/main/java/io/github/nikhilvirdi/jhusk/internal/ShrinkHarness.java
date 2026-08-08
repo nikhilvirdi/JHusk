@@ -16,6 +16,8 @@ import java.util.function.Consumer;
  * or track the "best" buffer (that is Phase 12's job). It takes a candidate,
  * replays it through the generator and assertion, and definitively answers:
  * "does this candidate reproduce the original failure?"
+ * 
+ * @param <T> the type of value generated and tested
  */
 public class ShrinkHarness<T> {
 
@@ -45,6 +47,11 @@ public class ShrinkHarness<T> {
      * Exception thrown when the harness exceeds its attempt budget.
      */
     public static class AttemptBoundExceededException extends RuntimeException {
+        /**
+         * Constructs a new AttemptBoundExceededException with the specified detail message.
+         *
+         * @param message the detail message
+         */
         public AttemptBoundExceededException(String message) {
             super(message);
         }
@@ -109,6 +116,10 @@ public class ShrinkHarness<T> {
 
     /**
      * Constructs a ShrinkHarness with a default maximum of 5,000 attempts.
+     *
+     * @param generator the generator that produced the original failure
+     * @param assertion the property assertion that originally failed
+     * @param originalFailureClass the exact class of the exception thrown by the original failure
      */
     public ShrinkHarness(Generator<T> generator, Consumer<T> assertion, 
                          Class<? extends Throwable> originalFailureClass) {
@@ -184,6 +195,8 @@ public class ShrinkHarness<T> {
 
     /**
      * Returns the total number of unique buffers evaluated.
+     *
+     * @return the number of unique candidates evaluated
      */
     public int getAttempts() {
         return attempts;
@@ -192,6 +205,8 @@ public class ShrinkHarness<T> {
     /**
      * Returns spans from the most recently accepted candidate. This metadata is
      * captured by {@link #tryBuffer(byte[])}, so callers never replay candidates.
+     *
+     * @return the list of root spans recorded during the last accepted candidate run
      */
     public List<Span> getLastAcceptedRootSpans() {
         return lastAcceptedRootSpans;

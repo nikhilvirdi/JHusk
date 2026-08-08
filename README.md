@@ -1,9 +1,6 @@
 # Husk (JHusk)
 
-
-
 ## What is JHusk?
-
 <p align="center">
   <img width="400" height="100" alt="JHusk LTL" src="https://github.com/user-attachments/assets/009397db-9358-48fe-9a3d-3beaf4d2cdf7" />
   <img width="400" height="100" alt="JHusk DTL" src="https://github.com/user-attachments/assets/694aac97-97dd-4bee-be49-1ffae0e896a5" />
@@ -64,6 +61,14 @@ Once JHusk finds a failing input, it saves the byte stream that produced it to a
 - Deterministic, reproducible failures through seed-based replay
 - Native JUnit 5 integration through a `@Property` annotation
 
+## Before you start
+
+A few things worth knowing before you add JHusk to a project:
+
+- **Java 17 or later.** JHusk is built and tested against JDK 17, 21, and 25.
+- **`Generators.optionals(Generator<T>)` returns `Generator<T>`, not `Generator<Optional<T>>`.** It produces a value that may be a plain Java `null`, rather than wrapping the value in an `Optional`. This has tripped people up more than once, so it's worth remembering before you write a test around it.
+- **Generators have an internal size limit.** JHusk encodes the values it generates as a stream of bytes, capped at 8KB per generated example (see "Shrinking" above for why the byte stream exists in the first place). For most properties this is invisible. But if you generate a very large collection, tens of thousands of elements, or a very long string, you can run past that cap before JHusk finishes encoding it, and the run will fail with `PropertyExecutionException` reporting an exhausted budget rather than a normal generated value. This is a known constraint of the current design, not a bug. If you hit it, the fix is usually to lower the collection's max size. See `/adversarial-tests` for the tests that specifically exercise this boundary and confirm the behavior is as expected.
+
 ## Usage
 
 The examples below are real, compiled code, not aspirational API sketches — each one is backed by
@@ -120,6 +125,22 @@ Properties run alongside regular `@Test` methods, appear in the same test report
 - **`DataSource`** is not thread-safe and must never be shared across threads. This is rarely something you need to think about directly: `Property.check()` creates a fresh `DataSource` per generated example, and you'd only construct one yourself if writing a custom `Generator` from scratch.
 - **`Property<T>`** is a mutable builder. Configure an instance (`named`, `examples`, `withStorageDir`, etc.) on one thread before calling `check()`; don't mutate its configuration concurrently with a `check()` call, and don't call `check()` concurrently on the same instance from multiple threads.
 - Running `check()` concurrently across *different* `Property` instances is safe even when they share a failure-storage directory and property identity: `FailureStorage` writes atomically (temp file + rename), so a concurrent read can never observe a torn or partially-written buffer. What's still true is that concurrent writes to the *same* identity race for which one's failure ends up stored — one atomic rename simply wins over the other. Distinct identities or storage directories are entirely unaffected either way.
+
+## Testing
+
+Most of JHusk's own test suite was written by the same people who built the library, which means it can share the same blind spots as the implementation itself. To get a second, more skeptical opinion, an independent adversarial test suite was written separately, by an author working only against JHusk's public API as an external Maven dependency, with no knowledge of the internals.
+
+That suite lives in `/adversarial-tests` and covers eight categories: boundary values, deeply nested composite generators, filters and generators that are impossible to satisfy, deliberately planted bugs (to confirm shrinking actually finds and reports real failures), determinism and thread-safety under concurrent use, large-scale stress cases, generic type inference across chained generators, and unusual or malformed API usage.
+
+It's worth being upfront about what that process actually found, rather than just reporting a final pass count.
+
+**Real bugs it caught:** `Property.check()` originally threw plain `AssertionError` for every kind of failure, including invalid-budget exhaustion and generator crashes. Because `AssertionError` doesn't extend `RuntimeException`, code wrapping `check()` in `catch (Exception e)` couldn't catch it. This is now fixed: `PropertyExecutionException extends RuntimeException` covers budget and crash failures, while `AssertionError` is reserved for genuine property falsification, the same split JUnit itself uses between `AssertionFailedError` and `AssertionError`.
+
+**Issues that turned out to be in the test suite, not JHusk:** an apparent infinite loop traced back to a bug in the test's own planted binary search helper. A few early failures came from incorrect assumptions in the tests themselves, wrong expected exception types, the `optionals()` misunderstanding mentioned above, and generators set to overly strict exact sizes.
+
+**A known, intentional design limit, not a defect:** the 8KB buffer cap described above. Three of the stress tests generate very large collections specifically to exercise this limit, and they assert that JHusk correctly reports `PropertyExecutionException` rather than silently succeeding or hanging.
+
+The `/adversarial-tests` folder includes its own README with the full breakdown and instructions for running the suite yourself.
 
 ## How JHusk differs from jqwik
 

@@ -30,6 +30,8 @@ public @interface ForAll {
      * Optional explicit generator factory method name (e.g. "myCustomGen").
      * The referenced method must be a {@code static} method in the same class
      * taking no arguments and returning a {@code Generator}.
+     *
+     * @return the name of the static generator factory method, or empty if using default type inference
      */
     String value() default "";
 }

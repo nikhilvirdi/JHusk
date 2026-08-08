@@ -5,6 +5,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -12,6 +13,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -54,21 +57,100 @@ class PropertyTest {
     }
 
     @Test
-    @DisplayName("Filter exhaustion triggers invalid budget abort")
+    @DisplayName("Filter exhaustion triggers invalid budget abort via PropertyExecutionException, not AssertionError")
     void filterExhaustionAborts() {
         // Generator that always marks itself invalid via an impossible filter
         Generator<Integer> gen = Generators.integers().filter(x -> false);
 
-        AssertionError error = assertThrows(AssertionError.class, () -> {
+        // PropertyExecutionException (a RuntimeException), NOT AssertionError: exhausting the
+        // invalid-run budget means the property couldn't be meaningfully checked at all -- it's a
+        // setup problem (an over-restrictive filter here), not a finding that the code under test
+        // is wrong. See Property's class Javadoc ("Exception semantics") for the full reasoning.
+        // A caller doing the idiomatic catch (Exception e) / assertThrows(RuntimeException.class,
+        // ...) must catch this -- AssertionError, a sibling of Exception under Throwable, would
+        // silently evade both.
+        PropertyExecutionException error = assertThrows(PropertyExecutionException.class, () -> {
             Property.forAll(gen, value -> {
                 assertTrue(true);
             }).check(123L);
         });
 
-        assertTrue(error.getMessage().contains("exhausted invalid budget"), 
+        assertTrue(error.getMessage().contains("exhausted invalid budget"),
             "Should throw invalid budget exception, not silently pass");
         assertTrue(error.getMessage().contains("Too many invalid runs"),
             "Message should clarify too many invalid runs occurred");
+    }
+
+    @Test
+    @DisplayName("A generator that crashes during data generation throws PropertyExecutionException, preserving the cause")
+    void generatorCrashThrowsPropertyExecutionException() {
+        RuntimeException generatorBug = new RuntimeException("bug inside a custom Generator");
+        Generator<Integer> crashingGen = source -> {
+            throw generatorBug;
+        };
+
+        PropertyExecutionException error = assertThrows(PropertyExecutionException.class, () ->
+            Property.forAll(crashingGen, value -> { }).check(1L));
+
+        assertTrue(error.getMessage().contains("Generator crashed during data generation"),
+            "Message should identify a generator crash, distinct from a property falsification");
+        assertSame(generatorBug, error.getCause(),
+            "The generator's original exception must be preserved as the cause");
+    }
+
+    /**
+     * Regression tests for an adversarially-reported "confirmed hang" in filter()-after-map()
+     * composition (e.g. {@code lists(...).map(l -> dedupe(l)).filter(l -> l.size() >= 2)}, where
+     * deduplication can collapse a list below the filter's threshold). Investigation (60+ direct
+     * reproduction attempts across a systematic sweep of domain sizes and list-size bounds, plus a
+     * mathematical trace of every loop involved: Property.check()'s Step 2 loop is bounded by
+     * maxInvalidRuns, Generator.filter()'s retry loop is a fixed-bound for-loop, and
+     * Generators.lists()'s while-loop strictly increases result.size() or breaks) found no
+     * possible unbounded path and could not reproduce a hang under any parameterization. These
+     * tests exist so that IF a future change to filter()/map()/lists() ever reintroduces an
+     * unbounded path, CI fails loudly (via @Timeout) instead of hanging.
+     */
+    @Nested
+    @DisplayName("filter()-after-map() composition never hangs (adversarial report follow-up)")
+    class FilterAfterMapNeverHangs {
+
+        @Test
+        @Timeout(value = 10, unit = TimeUnit.SECONDS)
+        @DisplayName("The exact reported repro completes quickly, every time")
+        void reportedReproCompletesQuickly() {
+            Generator<List<Integer>> listGen = Generators.lists(Generators.integers(0, 20), 2, 10);
+            Generator<List<Integer>> dedupedGen = listGen.map(l -> {
+                List<Integer> result = new ArrayList<>(new TreeSet<>(l));
+                return result;
+            });
+            Generator<List<Integer>> gen = dedupedGen.filter(l -> l.size() >= 2);
+
+            // Should complete well within the @Timeout; assertion body intentionally empty,
+            // matching the original report -- the point is termination, not a specific outcome.
+            Property.forAll(gen, list -> { }).check();
+        }
+
+        @Test
+        @Timeout(value = 10, unit = TimeUnit.SECONDS)
+        @DisplayName("A guaranteed-always-reject filter()-after-map() throws PropertyExecutionException quickly, not hangs")
+        void guaranteedRejectThrowsQuicklyNotHangs() {
+            // integers(0, 0): every draw is exactly 0, so ANY list, after dedup, collapses to
+            // size 1 -- filter(size >= 2) rejects every single attempt, with zero luck involved.
+            // This is the worst case for the invalid-budget mechanism under this composition.
+            Generator<List<Integer>> listGen = Generators.lists(Generators.integers(0, 0), 2, 2);
+            Generator<List<Integer>> dedupedGen = listGen.map(l -> {
+                List<Integer> result = new ArrayList<>(new TreeSet<>(l));
+                return result;
+            });
+            Generator<List<Integer>> gen = dedupedGen.filter(l -> l.size() >= 2);
+
+            PropertyExecutionException error = assertThrows(PropertyExecutionException.class, () ->
+                Property.forAll(gen, list -> { }).check());
+
+            assertTrue(error.getMessage().contains("exhausted invalid budget"),
+                "filter()-after-map() must count toward and hit the SAME invalid-budget guard as a "
+                    + "bare filter() on a primitive generator -- no bypass for composed generators");
+        }
     }
 
     @Nested

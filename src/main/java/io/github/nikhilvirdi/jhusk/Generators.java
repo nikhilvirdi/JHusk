@@ -263,6 +263,9 @@ public final class Generators {
      * @param a the first generator
      * @param b the second generator
      * @param f combines the two generated values into a result
+     * @param <A> first argument type
+     * @param <B> second argument type
+     * @param <R> result type
      * @return a generator producing {@code f.apply(a's value, b's value)}
      */
     public static <A, B, R> Generator<R> combine(Generator<A> a, Generator<B> b, BiFunction<A, B, R> f) {
@@ -288,6 +291,10 @@ public final class Generators {
      * @param b the second generator
      * @param c the third generator
      * @param f combines the three generated values into a result
+     * @param <A> first argument type
+     * @param <B> second argument type
+     * @param <C> third argument type
+     * @param <R> result type
      * @return a generator producing {@code f.apply(a's value, b's value, c's value)}
      */
     public static <A, B, C, R> Generator<R> combine(Generator<A> a, Generator<B> b, Generator<C> c, Function3<A, B, C, R> f) {
@@ -376,6 +383,14 @@ public final class Generators {
      */
     @FunctionalInterface
     public interface Function3<A, B, C, R> {
+        /**
+         * Applies this function to the given arguments.
+         *
+         * @param a the first argument
+         * @param b the second argument
+         * @param c the third argument
+         * @return the function result
+         */
         R apply(A a, B b, C c);
     }
 
@@ -409,6 +424,25 @@ public final class Generators {
      * Shrink target (D4): the flag reuses the same nonzero=true/zero=false convention
      * as booleans() below, so all-zero bytes → every flag reads false immediately →
      * the empty (or minimum-size) list falls out for free, with no special-casing.
+     *
+     * INTERACTION WITH D6 (DataSource.MAX_BUFFER_SIZE, 8192 bytes):
+     *   Two consequences of this encoding compound against the buffer cap for large or
+     *   deeply-nested bounds:
+     *   (1) The mandatory minSize prefix draws no flag at all -- it cannot stop early --
+     *       so minSize alone must fit under the buffer cap. lists(integers(), 40_000, 50_000)
+     *       needs 160,000 bytes (4 bytes/int × 40,000) just for the mandatory elements,
+     *       ~20x the 8192-byte cap: every single attempt overruns, deterministically,
+     *       regardless of seed. This isn't a probability tail -- it's structurally impossible.
+     *   (2) The continuation flag is a raw random byte, "nonzero" (255/256 ≈ 99.6%) to
+     *       continue. That means optional elements are heavily biased toward maxSize rather
+     *       than averaging small, and this bias compounds across nesting (a list of maps,
+     *       each map a list of entries, each entry's value a string that's itself a list of
+     *       chars): every level tends toward its own max independently, multiplying the
+     *       total byte cost. See {@link DataSourceOverrunException}.
+     *   Neither is a bug in isolation -- D5 needs spans to be independently deletable, D6
+     *   needs a hard cap to bound worst-case memory -- but together they mean minSize ×
+     *   (min per-element byte width) must stay well under MAX_BUFFER_SIZE, and maxSize
+     *   should be sized assuming elements usually reach it, not average out low.
      * ═══════════════════════════════════════════════════════════════════════════════
      */
 
@@ -421,6 +455,11 @@ public final class Generators {
      * <p>100 is a fixed default chosen to keep generated collections small enough to be readable
      * in failure reports while still exercising realistic sizes; use
      * {@link #lists(Generator, int, int)} for an explicit bound.
+     *
+     * <p><b>Note on large collections:</b> Generating very large lists (roughly above the point
+     * where the per-element byte cost times the max size approaches ~8KB) may exceed the internal
+     * {@link io.github.nikhilvirdi.jhusk.internal.DataSource#MAX_BUFFER_SIZE} cap and cause a
+     * {@link PropertyExecutionException} during generation.
      *
      * @param elementGen generator for each element
      * @param <T> the element type
@@ -447,6 +486,19 @@ public final class Generators {
      * the final continuation-flag probe still opens its own (childless) {@code "list-element"}
      * span for just that one stop byte — harmless, since a childless span has nothing worth
      * deleting.
+     *
+     * <p><b>Buffer budget (see D5/D6 note above):</b> {@code minSize} elements are unconditional —
+     * they cannot stop early — so {@code minSize} times the element's minimum byte width must stay
+     * well under {@link io.github.nikhilvirdi.jhusk.internal.DataSource#MAX_BUFFER_SIZE} (8192
+     * bytes) or every generation attempt overruns the buffer and counts as invalid, deterministically
+     * exhausting {@link Property#maxInvalidRuns(int)} with zero successful runs — e.g.
+     * {@code lists(integers(), 40_000, 50_000)} needs 160,000 bytes for its mandatory prefix alone.
+     * Elements beyond {@code minSize} are biased toward {@code maxSize} (the continuation flag
+     * stops only ~1/256 of the time), and this bias compounds across nested generators (lists of
+     * strings, lists of maps, etc.), so budget {@code maxSize} assuming most runs approach it rather
+     * than average out small. For collections too large to fit this budget, write a custom
+     * {@link Generator} that draws a small seed and fills the collection with a local PRNG instead
+     * of drawing one span per element.
      *
      * @param elementGen generator for each element
      * @param minSize minimum list length (inclusive), must be &gt;= 0
@@ -566,6 +618,11 @@ public final class Generators {
      * still reproduces, so "smaller list buffer" not always implying "smaller set" is harmless
      * by construction rather than something shrinking has to special-case.
      *
+     * <p><b>Note on large collections:</b> Generating very large sets (roughly above the point
+     * where the per-element byte cost times the max size approaches ~8KB) may exceed the internal
+     * {@link io.github.nikhilvirdi.jhusk.internal.DataSource#MAX_BUFFER_SIZE} cap and cause a
+     * {@link PropertyExecutionException} during generation.
+     *
      * @param elementGen generator for each element
      * @param <T> the element type
      * @return a set generator
@@ -589,6 +646,11 @@ public final class Generators {
      * not a direct function of the entry list's size once duplicate keys collapse. This is
      * harmless for the same reason: the shrinker only ever observes the fully-decoded
      * {@code Map<K, V>} through the property assertion, never the intermediate entry list.
+     *
+     * <p><b>Note on large collections:</b> Generating very large maps (roughly above the point
+     * where the per-entry byte cost times the max size approaches ~8KB) may exceed the internal
+     * {@link io.github.nikhilvirdi.jhusk.internal.DataSource#MAX_BUFFER_SIZE} cap and cause a
+     * {@link PropertyExecutionException} during generation.
      *
      * @param keyGen generator for each key
      * @param valGen generator for each value
