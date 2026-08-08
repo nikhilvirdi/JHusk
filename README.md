@@ -1,6 +1,7 @@
 # Husk (JHusk)
 
 ## What is JHusk?
+
 <p align="center">
   <img width="400" height="100" alt="JHusk LTL" src="https://github.com/user-attachments/assets/009397db-9358-48fe-9a3d-3beaf4d2cdf7" />
   <img width="400" height="100" alt="JHusk DTL" src="https://github.com/user-attachments/assets/694aac97-97dd-4bee-be49-1ffae0e896a5" />
@@ -17,6 +18,31 @@ A normal unit test picks its own examples: `assertEquals(5, add(2, 3))`. The pro
 Property-based testing inverts this. Instead of picking examples, you describe a rule that should always be true, "sorting a list should never change its length," "decoding an encoded value should return the original value," and the library generates hundreds or thousands of inputs on its own, actively trying to find one that breaks the rule.
 
 Finding a failure is only half the job. A failing case can be a forty-element list full of arbitrary numbers, and staring at forty arbitrary numbers doesn't tell you much. So JHusk shrinks it: it keeps searching for smaller, simpler inputs that still trigger the same failure, until it can't reduce the input any further. A forty-element mess might shrink down to two elements, and the actual cause becomes obvious.
+
+## Who this is for
+
+JHusk is built for Java developers who write JUnit 5 tests and want stronger coverage than hand-picked examples can give. It's useful across a wide range of experience levels and project types:
+
+**If you're new to testing:**
+- You're learning how to write good unit tests and want a tool that helps you think in terms of rules and properties, rather than just individual examples.
+- You're a student working through algorithms and data structure assignments and want a way to check your implementation against a wide range of inputs without writing dozens of test cases by hand.
+
+**If you're building everyday application code:**
+- You're validating input parsing or form handling and want to make sure odd inputs, empty strings, extreme numbers, unusual Unicode, don't slip through unhandled.
+- You're writing utility functions, string manipulation, date handling, formatting logic, where a small oversight in one edge case can cause a real production bug.
+- You've been bitten before by a bug that only showed up on an input nobody thought to write a test for, and you'd rather catch that kind of thing automatically going forward.
+
+**If you're building libraries or reusable components:**
+- You're building a data structure or library and want confidence it behaves correctly across a wide range of inputs, including boundary values, deeply nested structures, and unusual combinations others might throw at it.
+- You maintain a serialization or encoding layer, JSON, binary formats, custom protocols, where round-tripping a value (encode then decode) should always return the original, and any exception to that rule is a real bug.
+- You're writing a public API and want to stress-test it the way an external, adversarial user might, before they do.
+
+**If you work on correctness-critical or algorithmic code:**
+- You're implementing or optimizing an algorithm, sorting, searching, numeric computation, concurrency primitives, where subtle correctness bugs are easy to introduce and hard to catch with a handful of examples.
+- You maintain code where a single wrong edge case has real consequences: financial calculations, data integrity checks, security-relevant parsing.
+- You already know property-based testing from another language, Hypothesis in Python or QuickCheck in Haskell, and want the same approach, including high-quality automatic shrinking, on the JVM.
+
+JHusk isn't a replacement for your existing unit tests. It's a complement: use `@Test` for the specific examples and edge cases you already know matter, and `@Property` for the broader rules you want checked automatically across everything else.
 
 ## Equivalent libraries
 
@@ -60,6 +86,50 @@ Once JHusk finds a failing input, it saves the byte stream that produced it to a
 - A persistent local failure database that replays known failing cases on every run
 - Deterministic, reproducible failures through seed-based replay
 - Native JUnit 5 integration through a `@Property` annotation
+
+## Installation
+
+JHusk is published on Maven Central under the coordinates `io.github.nikhilvirdi:jhusk`.
+
+### Maven
+
+Add this to your `pom.xml`:
+
+```xml
+<dependency>
+    <groupId>io.github.nikhilvirdi</groupId>
+    <artifactId>jhusk</artifactId>
+    <version>1.0.0</version>
+    <scope>test</scope>
+</dependency>
+```
+
+### Gradle
+
+Add this to your `build.gradle`:
+
+```groovy
+testImplementation 'io.github.nikhilvirdi:jhusk:1.0.0'
+```
+
+Or, for Kotlin DSL (`build.gradle.kts`):
+
+```kotlin
+testImplementation("io.github.nikhilvirdi:jhusk:1.0.0")
+```
+
+JHusk depends on JUnit 5 for its `@Property` integration, so make sure your project already has the standard JUnit 5 testing setup in place. If you're starting a new project from scratch, the [JUnit 5 user guide](https://junit.org/junit5/docs/current/user-guide/#writing-tests) covers that setup.
+
+## Getting started
+
+Once the dependency is added, here's the shortest path from nothing to a passing property test:
+
+1. **Write a generator, or use a built-in one.** For simple types, `int`, `long`, `double`, `char`, `boolean`, `String`, JHusk can infer a generator automatically. For anything else, a `List<Integer>` or a custom type, define a static generator factory method, as shown in the `integerLists()` example below.
+2. **Write the property.** Annotate a method with `@Property`, take the generated value as a parameter through `@ForAll`, and assert whatever rule should hold for every value the generator produces.
+3. **Run it like any other JUnit 5 test.** `mvn test`, `gradle test`, or your IDE's test runner all work as-is, no extra configuration needed beyond the dependency itself.
+4. **If it fails, read the shrunk report.** JHusk won't just tell you it failed. It'll hand you the smallest input it could find that still breaks the rule, along with a seed so you can reproduce that exact failure on demand.
+
+The full worked example is below.
 
 ## Before you start
 
