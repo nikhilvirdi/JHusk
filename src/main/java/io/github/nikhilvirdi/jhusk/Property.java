@@ -9,6 +9,14 @@ import java.nio.file.Path;
 import java.util.Optional;
 import java.util.SplittableRandom;
 import java.util.function.Consumer;
+import java.time.Duration;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * A property runner that binds a {@link Generator} to a test assertion,
@@ -69,6 +77,8 @@ public final class Property<T> {
     private int examples = 100;
     private int maxInvalidRuns = 1000;
     private FailureStorage failureStorage = new FailureStorage();
+    private Duration timeoutPerExample = null;
+    private int generationBudgetBytes = DataSource.MAX_BUFFER_SIZE;
 
     private Property(String name, Generator<T> generator, Consumer<T> assertion) {
         this.name = name;
@@ -179,6 +189,47 @@ public final class Property<T> {
     }
 
     /**
+     * Sets a per-example execution timeout.
+     * If an example takes longer than this duration, a PropertyTimeoutException is thrown.
+     * Default is null (no timeout, executes on the current thread).
+     *
+     * @param timeout the maximum duration to allow for a single example
+     * @return this instance, for fluent chaining
+     */
+    public Property<T> timeoutPerExample(Duration timeout) {
+        this.timeoutPerExample = timeout;
+        return this;
+    }
+
+    /**
+     * Sets the per-example generation buffer capacity (in bytes).
+     * Default is {@link DataSource#MAX_BUFFER_SIZE} (8192 bytes).
+     *
+     * <p>Raising this limit allows generators to produce larger values — bigger collections,
+     * longer strings, more deeply nested structures — that would otherwise exhaust the default
+     * 8KB buffer and cause a {@link GenerationBudgetExceededException}. The tradeoff is a larger
+     * possible shrink search space: shrink time can scale with buffer size, so only raise this
+     * as far as your actual data needs require.
+     *
+     * <p><b>Note:</b> This setting is not currently threaded through the JUnit
+     * {@code @Property} annotation. It is only available via direct
+     * {@code Property.forAll(...)} usage.
+     *
+     * @param bytes the maximum number of bytes the {@link DataSource} generation buffer may hold;
+     *              must be &gt; 0
+     * @return this instance, for fluent chaining
+     * @throws IllegalArgumentException if {@code bytes} is not positive
+     */
+    public Property<T> withGenerationBudget(int bytes) {
+        if (bytes <= 0) {
+            throw new IllegalArgumentException(
+                "generationBudgetBytes must be positive but was: " + bytes);
+        }
+        this.generationBudgetBytes = bytes;
+        return this;
+    }
+
+    /**
      * Checks the property using a randomly chosen master seed.
      *
      * <p>Equivalent to {@code check(new SplittableRandom().nextLong())}: replays any stored
@@ -212,7 +263,7 @@ public final class Property<T> {
         Optional<byte[]> stored = failureStorage.loadFailure(propertyId);
         if (stored.isPresent()) {
             byte[] storedBuffer = stored.get();
-            DataSource storedSource = new DataSource(storedBuffer);
+            DataSource storedSource = new DataSource(storedBuffer, generationBudgetBytes);
             T storedValue = null;
             boolean stillFails = false;
             Throwable storedFailure = null;
@@ -313,15 +364,22 @@ public final class Property<T> {
                         overrunRuns, DataSource.MAX_BUFFER_SIZE, invalidRuns - overrunRuns
                     );
                 }
-                throw new PropertyExecutionException(String.format(
+                String budgetMessage = String.format(
                     "Property exhausted invalid budget. " +
                     "Too many invalid runs (%d) were attempted while only completing %d valid runs. " + reason,
                     invalidRuns, successfulRuns
-                ));
+                );
+                if (overrunRuns == invalidRuns) {
+                    throw new GenerationBudgetExceededException(budgetMessage);
+                } else if (overrunRuns == 0) {
+                    throw new FilterExhaustedException(budgetMessage);
+                } else {
+                    throw new PropertyExecutionException(budgetMessage);
+                }
             }
 
             long exampleSeed = masterPrng.nextLong();
-            DataSource source = new DataSource(exampleSeed);
+            DataSource source = new DataSource(exampleSeed, generationBudgetBytes);
 
             T value = null;
             try {
@@ -335,7 +393,7 @@ public final class Property<T> {
                 // PropertyExecutionException, not AssertionError: a generator crashing is a bug in
                 // the generator (or a custom Generator a caller wrote), not a finding about the
                 // code under test -- see this class's "Exception semantics".
-                throw new PropertyExecutionException("Generator crashed during data generation (seed=" + exampleSeed + ")", t);
+                throw new GeneratorCrashException("Generator crashed during data generation (seed=" + exampleSeed + ")", t);
             }
 
             if (source.getStatus() == DataSource.Status.INVALID) {
@@ -345,9 +403,46 @@ public final class Property<T> {
 
             // Valid generation, now apply the property assertion
             try {
-                assertion.accept(value);
+                if (timeoutPerExample == null) {
+                    assertion.accept(value);
+                } else {
+                    ExecutorService executor = Executors.newSingleThreadExecutor(new ThreadFactory() {
+                        @Override
+                        public Thread newThread(Runnable r) {
+                            Thread t = new Thread(r);
+                            t.setDaemon(true);
+                            t.setName("JHusk-timeout-worker");
+                            return t;
+                        }
+                    });
+                    
+                    final T valueForTimeout = value;
+                    Future<?> future = executor.submit(() -> assertion.accept(valueForTimeout));
+                    try {
+                        future.get(timeoutPerExample.toMillis(), TimeUnit.MILLISECONDS);
+                    } catch (TimeoutException e) {
+                        future.cancel(true);
+                        throw new PropertyTimeoutException(String.format(
+                            "Property example timed out after %s. Seed: %d. Value: %s",
+                            timeoutPerExample, masterSeed, String.valueOf(value)), e);
+                    } catch (ExecutionException e) {
+                        throw e.getCause(); // Unwrap real assertion failures
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new PropertyExecutionException("Thread was interrupted while waiting for property execution", e);
+                    } finally {
+                        executor.shutdownNow();
+                    }
+                }
                 successfulRuns++;
             } catch (Throwable failure) {
+                // A timeout is not a falsification — bypass shrinking entirely.
+                // Sending a PropertyTimeoutException into the shrinker would re-invoke
+                // the hanging assertion on every shrink attempt, re-hanging indefinitely.
+                if (failure instanceof PropertyTimeoutException) {
+                    throw (PropertyTimeoutException) failure;
+                }
+
                 // The property failed! Perform shrinking to find the minimal counterexample.
                 byte[] rawBuffer = source.getRecordedBuffer();
 

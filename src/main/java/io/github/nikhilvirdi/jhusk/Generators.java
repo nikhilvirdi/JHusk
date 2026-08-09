@@ -581,6 +581,17 @@ public final class Generators {
      * {@link #booleans()}. All-zero bytes → absent (D4: absence is simpler than presence, so
      * {@code null} is the shrink target).
      *
+     * <p><b>Null probability (documented, stable guarantee):</b> Exactly 1 of the 256 possible
+     * unsigned byte values (0x00) maps to "absent" ({@code null}). The remaining 255 values map
+     * to "present" (delegates to {@code gen}). This gives a null rate of exactly 1/256 ≈ 0.39%
+     * and a present rate of exactly 255/256 ≈ 99.61%. This encoding is a fixed, committed
+     * guarantee — not an implementation detail — because any change would silently alter the
+     * replay behavior of existing {@code .jhusk/} stored-failure buffers. At the default 100
+     * examples, the expected number of null draws is under 0.4; it is entirely normal to run
+     * the full example budget without ever hitting the null branch. Use
+     * {@link #optionals(Generator, double)} to configure a higher null probability when
+     * null-handling coverage is important to your property.
+     *
      * <p><b>Span:</b> labeled {@code "optional"}, wrapping the flag and, when present, {@code gen}'s
      * own nested span.
      *
@@ -594,6 +605,64 @@ public final class Generators {
             try {
                 boolean present = source.drawBytes(1)[0] != 0;
                 if (!present) {
+                    return null;
+                }
+                return gen.generate(source);
+            } finally {
+                source.endSpan();
+            }
+        };
+    }
+
+    /**
+     * Returns a generator that wraps {@code gen} with a configurable null probability.
+     *
+     * <p><b>Encoding:</b> Draws 1 byte via {@link DataSource#drawBytes(int) drawBytes(1)}, wrapped
+     * in the same {@code startSpan("optional")} / {@code finally { endSpan(); }} structure as
+     * {@link #optionals(Generator)}. The drawn byte is interpreted as an unsigned value in
+     * {@code [0, 255]}. A threshold of {@code (int)(nullProbability × 256)} divides the byte
+     * space: unsigned byte values {@code < threshold} map to absent ({@code null}); values
+     * {@code >= threshold} map to present (delegates to {@code gen}). All-zero bytes always
+     * map to the outcome with the lowest threshold — absent when {@code nullProbability > 0.0},
+     * present when {@code nullProbability == 0.0} — preserving the D4 shrink-toward-all-zero
+     * invariant.
+     *
+     * <p><b>Edge cases:</b>
+     * <ul>
+     *   <li>{@code nullProbability == 0.0} → threshold is 0; no byte value is ever {@code < 0},
+     *       so {@code null} is never returned and {@code gen} is always invoked.</li>
+     *   <li>{@code nullProbability == 1.0} → threshold is 256; every byte value (0-255) is
+     *       {@code < 256}, so {@code null} is always returned and {@code gen} is never invoked.</li>
+     * </ul>
+     *
+     * <p><b>Note:</b> This overload uses a different byte-encoding from the single-argument
+     * {@link #optionals(Generator)} — the two are intentionally independent implementations.
+     * Do not substitute one for the other in stored failure buffers.
+     *
+     * <p><b>Span:</b> labeled {@code "optional"}, wrapping the flag and, when present, {@code gen}'s
+     * own nested span.
+     *
+     * @param gen the generator to run when a value is present
+     * @param nullProbability the probability of returning {@code null}, in the range {@code [0.0, 1.0]}
+     * @param <T> the value type
+     * @return a generator producing {@code null} with the configured probability, or a value from {@code gen}
+     * @throws IllegalArgumentException if {@code nullProbability} is outside {@code [0.0, 1.0]}
+     */
+    public static <T> Generator<T> optionals(Generator<T> gen, double nullProbability) {
+        if (nullProbability < 0.0 || nullProbability > 1.0) {
+            throw new IllegalArgumentException(
+                "nullProbability must be in [0.0, 1.0] but was: " + nullProbability);
+        }
+        // Pre-compute threshold: how many of the 256 unsigned byte values map to absent.
+        // Threshold 0 → never null (nullProbability == 0.0).
+        // Threshold 256 → always null (nullProbability == 1.0).
+        final int threshold = (int) (nullProbability * 256);
+
+        return source -> {
+            source.startSpan("optional");
+            try {
+                int unsigned = source.drawBytes(1)[0] & 0xFF;
+                if (unsigned < threshold) {
                     return null;
                 }
                 return gen.generate(source);

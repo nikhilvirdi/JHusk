@@ -85,26 +85,76 @@ public class DataSource {
     /** List of top-level completed root spans created during the run. */
     private final List<Span> rootSpans = new ArrayList<>();
 
+    /** Per-instance generation buffer capacity limit; defaults to {@link #MAX_BUFFER_SIZE}. */
+    private final int maxBufferSize;
+
     /**
      * Constructs a {@code DataSource} in <b>Generation Mode</b> initialized with a PRNG seed.
+     * Uses the default buffer capacity of {@link #MAX_BUFFER_SIZE} bytes.
      *
      * @param seed the PRNG seed used to initialize {@link SplittableRandom}
      */
     public DataSource(long seed) {
-        this.random = new SplittableRandom(seed);
-        this.recordingBuffer = new ByteArrayOutputStream();
-        this.replayBuffer = null;
+        this(seed, MAX_BUFFER_SIZE);
     }
 
     /**
      * Constructs a {@code DataSource} in <b>Replay Mode</b> from a previously recorded byte buffer.
+     * Uses the default buffer capacity of {@link #MAX_BUFFER_SIZE} bytes.
      *
      * @param buffer the byte array to replay (a defensive clone is stored internally)
      */
     public DataSource(byte[] buffer) {
+        this(buffer, MAX_BUFFER_SIZE);
+    }
+
+    /**
+     * Constructs a {@code DataSource} in <b>Generation Mode</b> initialized with a PRNG seed
+     * and a custom per-instance buffer capacity limit.
+     *
+     * <p>The custom {@code maxBufferSize} replaces {@link #MAX_BUFFER_SIZE} as the cap enforced
+     * by {@link #drawBytes(int)} for this instance only. Use this constructor when the default
+     * 8KB cap is too small for a specific property (e.g. tests involving large collections or
+     * long strings) — see {@link io.github.nikhilvirdi.jhusk.Property#withGenerationBudget(int)}.
+     *
+     * @param seed          the PRNG seed used to initialize {@link SplittableRandom}
+     * @param maxBufferSize the maximum byte capacity allowed before a {@link DataSourceOverrunException}
+     *                      is thrown; must be &gt; 0
+     * @throws IllegalArgumentException if {@code maxBufferSize} is not positive
+     */
+    public DataSource(long seed, int maxBufferSize) {
+        if (maxBufferSize <= 0) {
+            throw new IllegalArgumentException(
+                "maxBufferSize must be positive but was: " + maxBufferSize);
+        }
+        this.random = new SplittableRandom(seed);
+        this.recordingBuffer = new ByteArrayOutputStream();
+        this.replayBuffer = null;
+        this.maxBufferSize = maxBufferSize;
+    }
+
+    /**
+     * Constructs a {@code DataSource} in <b>Replay Mode</b> from a previously recorded byte buffer
+     * and a custom per-instance buffer capacity limit.
+     *
+     * <p>The custom {@code maxBufferSize} replaces {@link #MAX_BUFFER_SIZE} as the cap enforced
+     * by {@link #drawBytes(int)} for this instance only. Replay mode itself does not enforce the
+     * cap (it reads from a fixed buffer), but the field is recorded for consistency with the
+     * generation-mode counterpart and for future use.
+     *
+     * @param buffer        the byte array to replay (a defensive clone is stored internally)
+     * @param maxBufferSize the maximum byte capacity; must be &gt; 0
+     * @throws IllegalArgumentException if {@code maxBufferSize} is not positive
+     */
+    public DataSource(byte[] buffer, int maxBufferSize) {
+        if (maxBufferSize <= 0) {
+            throw new IllegalArgumentException(
+                "maxBufferSize must be positive but was: " + maxBufferSize);
+        }
         this.random = null;
         this.recordingBuffer = null;
         this.replayBuffer = buffer.clone();
+        this.maxBufferSize = maxBufferSize;
     }
 
     /**
@@ -155,11 +205,11 @@ public class DataSource {
             return drawn;
         } else {
             // --- Generation mode execution path ---
-            if (recordingBuffer.size() + n > MAX_BUFFER_SIZE) {
-                // Exceeding MAX_BUFFER_SIZE (8192 bytes) throws DataSourceOverrunException
+            if (recordingBuffer.size() + n > this.maxBufferSize) {
+                // Exceeding the configured buffer cap throws DataSourceOverrunException
                 // to prevent runaway generators from exhausting heap memory.
                 throw new DataSourceOverrunException(
-                    "Drawing " + n + " bytes would exceed buffer capacity limit of " + MAX_BUFFER_SIZE + " bytes"
+                    "Drawing " + n + " bytes would exceed buffer capacity limit of " + this.maxBufferSize + " bytes"
                 );
             }
 

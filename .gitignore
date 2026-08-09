@@ -18,4 +18,7 @@ Thumbs.db
 WORKPLAN.md
 
 # Local test failure persistence run artifacts
-.jhusk/
+.jhusk/
+
+# Test utilities
+adversarial-tests/
