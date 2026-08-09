@@ -6,10 +6,6 @@
       media="(prefers-color-scheme: dark)"
       srcset="https://github.com/user-attachments/assets/694aac97-97dd-4bee-be49-1ffae0e896a5"
     />
-    <source
-      media="(prefers-color-scheme: light)"
-      srcset="https://github.com/user-attachments/assets/009397db-9358-48fe-9a3d-3beaf4d2cdf7"
-    />
     <img
       width="400"
       height="100"
