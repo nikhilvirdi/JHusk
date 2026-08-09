@@ -2,6 +2,7 @@ package io.github.nikhilvirdi.jhusk.internal;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -351,6 +352,54 @@ class DataSourceTest {
             assertEquals(e.getEnd(), a.getEnd(), "Span end mismatch at index " + i);
             assertEquals(e.getLabel(), a.getLabel(), "Span label mismatch at index " + i);
             assertSpanTreesEqual(e.getChildren(), a.getChildren());
+        }
+    }
+
+    @Nested
+    @DisplayName("ConfigurableBufferSizeTests — custom maxBufferSize constructors")
+    class ConfigurableBufferSizeTests {
+
+        @Test
+        @DisplayName("Custom buffer size allows drawing up to the configured cap without throwing")
+        void customBufferSizeAllowsLargerGeneration() {
+            // Double the default cap: 16384 bytes
+            DataSource ds = new DataSource(1L, 16384);
+            // Draw 4000 x 4 bytes = 16000 bytes — under 16KB but over the default 8KB cap.
+            // If the custom cap is not honoured, DataSourceOverrunException would be thrown.
+            assertDoesNotThrow(() -> {
+                for (int i = 0; i < 4000; i++) {
+                    ds.drawBytes(4);
+                }
+            }, "Drawing 16000 bytes within a 16KB custom cap must not throw DataSourceOverrunException");
+        }
+
+        @Test
+        @DisplayName("Default single-arg constructor still enforces the original 8KB cap")
+        void defaultConstructorStillEnforcesOriginalEightKbCap() {
+            // The original single-arg constructor must behave byte-for-byte identically to before
+            DataSource ds = new DataSource(1L);
+            // Draw bytes until we exceed 8192
+            int drawn = 0;
+            while (drawn + 256 <= 8192) {
+                final int count = 256;
+                ds.drawBytes(count);
+                drawn += count;
+            }
+            // The next draw that would push us past 8192 must throw
+            assertThrows(DataSourceOverrunException.class,
+                () -> ds.drawBytes(256),
+                "Default constructor must still throw DataSourceOverrunException at the 8KB boundary");
+        }
+
+        @Test
+        @DisplayName("Zero or negative maxBufferSize is rejected eagerly at construction")
+        void zeroOrNegativeCustomBufferSizeRejectedEagerly() {
+            assertThrows(IllegalArgumentException.class,
+                () -> new DataSource(1L, 0),
+                "maxBufferSize=0 must throw IllegalArgumentException");
+            assertThrows(IllegalArgumentException.class,
+                () -> new DataSource(1L, -100),
+                "maxBufferSize=-100 must throw IllegalArgumentException");
         }
     }
 }

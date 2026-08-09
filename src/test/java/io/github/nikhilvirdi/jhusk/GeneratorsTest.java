@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SplittableRandom;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -906,6 +907,64 @@ class GeneratorsTest {
                     "Lexicographically smaller buffer must not produce a larger value: "
                             + valueSmaller + " > " + valueLarger);
             checked++;
+        }
+    }
+
+    @Nested
+    @DisplayName("ConfigurableOptionalsTests — optionals(Generator, double) overload")
+    class ConfigurableOptionalsTests {
+
+        @Test
+        @DisplayName("nullProbability=0.0 never produces null across 100 examples")
+        void zeroNullProbabilityNeverProducesNull() {
+            // Should pass without exception: null is never generated at probability 0.0
+            Property.forAll(Generators.optionals(Generators.integers(1, 100), 0.0),
+                v -> assertNotNull(v, "Expected non-null but got null at nullProbability=0.0")
+            ).check();
+        }
+
+        @Test
+        @DisplayName("nullProbability=1.0 always produces null across 100 examples")
+        void oneNullProbabilityAlwaysProducesNull() {
+            // Should pass without exception: null is always generated at probability 1.0
+            Property.forAll(Generators.optionals(Generators.integers(1, 100), 1.0),
+                v -> assertNull(v, "Expected null but got non-null at nullProbability=1.0")
+            ).check();
+        }
+
+        @Test
+        @DisplayName("nullProbability=-0.1 throws IllegalArgumentException immediately at construction time")
+        void invalidNullProbabilityBelowZeroThrowsImmediately() {
+            assertThrows(IllegalArgumentException.class,
+                () -> Generators.optionals(Generators.integers(), -0.1),
+                "Negative nullProbability must throw IllegalArgumentException immediately");
+        }
+
+        @Test
+        @DisplayName("nullProbability=1.1 throws IllegalArgumentException immediately at construction time")
+        void invalidNullProbabilityAboveOneThrowsImmediately() {
+            assertThrows(IllegalArgumentException.class,
+                () -> Generators.optionals(Generators.integers(), 1.1),
+                "nullProbability > 1.0 must throw IllegalArgumentException immediately");
+        }
+
+        @Test
+        @DisplayName("nullProbability=0.5 produces null rate within [0.35, 0.65] over 2000 samples")
+        void approximatelyMatchesConfiguredProbabilityOverManySamples() {
+            AtomicInteger nullCount = new AtomicInteger(0);
+            AtomicInteger totalCount = new AtomicInteger(0);
+
+            Property.forAll(Generators.optionals(Generators.integers(1, 100), 0.5), v -> {
+                totalCount.incrementAndGet();
+                if (v == null) {
+                    nullCount.incrementAndGet();
+                }
+            }).examples(2000).check();
+
+            double observedRate = (double) nullCount.get() / totalCount.get();
+            assertTrue(observedRate >= 0.35 && observedRate <= 0.65,
+                "Observed null rate " + observedRate + " is outside the expected [0.35, 0.65] band "
+                + "for nullProbability=0.5 over " + totalCount.get() + " samples");
         }
     }
 }
