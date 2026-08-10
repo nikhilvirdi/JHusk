@@ -18,6 +18,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A property runner that binds a {@link Generator} to a test assertion,
@@ -72,6 +73,34 @@ import java.util.concurrent.TimeoutException;
 public final class Property<T> {
 
     private static final byte[] EDGE_CASE_FILL_BYTES = { (byte) 0x00, (byte) 0xFF };
+    private static final AtomicBoolean BANNER_PRINTED = new AtomicBoolean(false);
+
+    /**
+     * Resets the one-time banner gate. Package-private and test-only --
+     * not part of the public API surface. Callable from PropertyTest.java
+     * since it's in the same package.
+     */
+    static void resetBannerStateForTesting() {
+        BANNER_PRINTED.set(false);
+    }
+
+    private static final String BANNER_ART = """
+        .....## ##...## ##...## .#####. ##...##
+        .....## ##...## ##...## ##..... ##..##.
+        .....## ##...## ##...## ##..... ##.##..
+        .....## ####### ##...## .#####. ####...
+        .....## ##...## ##...## .....## ####...
+        ##...## ##...## ##...## .....## ##.##..
+        ##...## ##...## ##...## .....## ##..##.
+        .#####. ##...## .#####. .#####. ##...##""";
+
+    private static void maybePrintBanner() {
+        if (BANNER_PRINTED.compareAndSet(false, true)) {
+            if (Boolean.parseBoolean(System.getProperty("jhusk.banner", "true"))) {
+                System.out.println(BANNER_ART.replace('.', ' '));
+            }
+        }
+    }
 
     private final Generator<T> generator;
     private final Consumer<T> assertion;
@@ -297,6 +326,7 @@ public final class Property<T> {
      * @throws PropertyExecutionException if the invalid-run budget is exhausted or the generator crashes
      */
     public void check(long masterSeed) {
+        maybePrintBanner();
         String propertyId = resolvePropertyId();
 
         // -------------------------------------------------------------------
@@ -321,9 +351,15 @@ public final class Property<T> {
                 // silently satisfy the assertion, and the stored failure -- a real, never actually
                 // re-validated regression -- would be pruned as "fixed" below.
                 if (storedSource.getStatus() == DataSource.Status.VALID) {
-                    assertion.accept(storedValue);
+                    runAssertion(storedValue, masterSeed);
                 }
             } catch (Throwable failure) {
+                // A timeout is not a falsification -- propagate it unwrapped rather than
+                // wrapping it in the "Replayed Stored Failure" AssertionError below, matching
+                // how the edge-case and random loops treat PropertyTimeoutException.
+                if (failure instanceof PropertyTimeoutException) {
+                    throw (PropertyTimeoutException) failure;
+                }
                 stillFails = true;
                 storedFailure = failure;
             }
@@ -370,6 +406,7 @@ public final class Property<T> {
         int invalidRuns = 0;
         int overrunRuns = 0;
         int assumptionRejections = 0;
+        int edgeCaseSuccesses = 0;
 
         for (byte fillByte : EDGE_CASE_FILL_BYTES) {
             byte[] edgeBuffer = buildEdgeCaseBuffer(fillByte);
@@ -405,6 +442,7 @@ public final class Property<T> {
             try {
                 runAssertion(value, masterSeed);
                 successfulRuns++;
+                edgeCaseSuccesses++;
             } catch (Throwable failure) {
                 if (failure instanceof PropertyTimeoutException) {
                     throw (PropertyTimeoutException) failure; // should not occur here since
@@ -524,6 +562,14 @@ public final class Property<T> {
                     propertyId, masterSeed, successfulRuns + 1, invalidRuns);
             }
         }
+
+        int filterOnlyRejections = invalidRuns - overrunRuns - assumptionRejections;
+        System.out.printf(
+            "JHusk: %s passed - %d examples (%d edge cases + %d random), "
+            + "%d invalid (%d overrun, %d filter, %d assumption)%n",
+            propertyId, successfulRuns, edgeCaseSuccesses,
+            successfulRuns - edgeCaseSuccesses, invalidRuns, overrunRuns,
+            filterOnlyRejections, assumptionRejections);
     }
 
     private void runAssertion(T value, long masterSeed) throws Throwable {

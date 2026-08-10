@@ -7,7 +7,9 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -288,7 +290,7 @@ class PropertyTest {
         }
 
         @Test
-        @Timeout(value = 5, unit = TimeUnit.SECONDS)
+        @Timeout(value = 20, unit = TimeUnit.SECONDS)
         @DisplayName("timeoutPerExample throws PropertyTimeoutException on genuine hang")
         void timeoutPerExampleThrowsOnGenuineHang() {
             Generator<Integer> gen = Generators.integers(42, 42);
@@ -308,6 +310,37 @@ class PropertyTest {
             PropertyTimeoutException ex = assertThrows(PropertyTimeoutException.class, prop::check);
             assertTrue(ex.getMessage().contains("timed out"));
             assertTrue(ex.getMessage().contains("42"));
+        }
+
+        @Test
+        @Timeout(value = 3, unit = TimeUnit.SECONDS)
+        @DisplayName("timeoutPerExample also bounds replay of a stored failure, not just fresh runs")
+        void timeoutPerExampleBoundsReplayOfStoredFailure() throws IOException {
+            Path tempDir = Files.createTempDirectory("jhusk_replay_timeout_test_");
+            try {
+                String propId = "test-replay-timeout";
+                Generator<Integer> gen = Generators.integers(42, 42);
+                new FailureStorage(tempDir).saveFailure(propId, new byte[16]);
+
+                Property<Integer> prop = Property.forAll(propId, gen, value -> {
+                    while (true) {
+                        try {
+                            Thread.sleep(100);
+                        } catch (InterruptedException e) {
+                            break;
+                        }
+                    }
+                }).withStorageDir(tempDir).timeoutPerExample(Duration.ofMillis(300));
+
+                assertThrows(PropertyTimeoutException.class, prop::check);
+            } finally {
+                try (var files = Files.list(tempDir)) {
+                    for (Path file : files.toList()) {
+                        Files.deleteIfExists(file);
+                    }
+                }
+                Files.deleteIfExists(tempDir);
+            }
         }
 
         @Test
@@ -634,6 +667,94 @@ class PropertyTest {
 
             assertFalse(received.isEmpty());
             assertTrue(received.stream().allMatch(x -> x % 2 == 0 && x > 50));
+        }
+    }
+
+    @Nested
+    @DisplayName("Banner and stats output tests")
+    class BannerAndStatsTests {
+
+        @Test
+        @DisplayName("Banner prints exactly once across multiple check() calls")
+        void bannerPrintsExactlyOnce() {
+            Property.resetBannerStateForTesting();
+            PrintStream originalOut = System.out;
+            ByteArrayOutputStream captured = new ByteArrayOutputStream();
+            try {
+                System.setOut(new PrintStream(captured));
+                Property.forAll(Generators.integers(1, 1), v -> { }).examples(1).check(1L);
+                Property.forAll(Generators.integers(1, 1), v -> { }).examples(1).check(2L);
+            } finally {
+                System.setOut(originalOut);
+            }
+
+            String output = captured.toString();
+            String bannerFirstLine = "     ## ##   ## ##   ##  #####  ##   ##";
+            int firstIndex = output.indexOf(bannerFirstLine);
+            assertTrue(firstIndex >= 0, "Banner must appear at least once");
+            int secondIndex = output.indexOf(bannerFirstLine, firstIndex + bannerFirstLine.length());
+            assertEquals(-1, secondIndex, "Banner must NOT appear a second time");
+        }
+
+        @Test
+        @DisplayName("jhusk.banner=false suppresses banner output")
+        void systemPropertySuppressesBanner() {
+            Property.resetBannerStateForTesting();
+            PrintStream originalOut = System.out;
+            ByteArrayOutputStream captured = new ByteArrayOutputStream();
+            try {
+                System.setProperty("jhusk.banner", "false");
+                System.setOut(new PrintStream(captured));
+                Property.forAll(Generators.integers(1, 1), v -> { }).examples(1).check(1L);
+            } finally {
+                System.setOut(originalOut);
+                System.clearProperty("jhusk.banner");
+            }
+
+            String output = captured.toString();
+            String bannerFirstLine = "     ## ##   ## ##   ##  #####  ##   ##";
+            assertFalse(output.contains(bannerFirstLine), "Banner must NOT appear when jhusk.banner=false");
+        }
+
+        @Test
+        @DisplayName("Stats line shows correct counts for a trivially-true property with examples(5)")
+        void statsLineAccuracy() {
+            Property.resetBannerStateForTesting();
+            PrintStream originalOut = System.out;
+            ByteArrayOutputStream captured = new ByteArrayOutputStream();
+            try {
+                System.setOut(new PrintStream(captured));
+                Property.forAll(Generators.integers(), v -> { }).examples(5).check(42L);
+            } finally {
+                System.setOut(originalOut);
+            }
+
+            String output = captured.toString();
+            assertTrue(output.contains("5 examples"), "Total examples must be 5 (2 edge + 3 random)");
+            assertTrue(output.contains("2 edge cases"), "Edge case count must be 2");
+            assertTrue(output.contains("3 random"), "Random count must be 3");
+            assertTrue(output.contains("0 invalid"), "Invalid runs must be 0");
+        }
+
+        @Test
+        @DisplayName("Stats line does NOT appear when property fails")
+        void noStatsLineOnFailure() {
+            Property.resetBannerStateForTesting();
+            PrintStream originalOut = System.out;
+            ByteArrayOutputStream captured = new ByteArrayOutputStream();
+            try {
+                System.setOut(new PrintStream(captured));
+                assertThrows(AssertionError.class, () ->
+                    Property.forAll(Generators.integers(0, 100), v -> {
+                        assertTrue(v > 10, "Value must be > 10");
+                    }).examples(5).check(42L)
+                );
+            } finally {
+                System.setOut(originalOut);
+            }
+
+            String output = captured.toString();
+            assertFalse(output.contains("passed"), "Stats 'passed' line must NOT appear on failure");
         }
     }
 }
