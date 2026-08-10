@@ -10,6 +10,37 @@ This library is for Java developers writing unit tests who want their tests to c
 
 JHusk was built by a single developer as a way of bringing Hypothesis-style, internally-shrunk property-based testing to the JVM, an approach that, as far as this project's author is aware, no existing Java library takes in quite the same way.
 
+## What's New in 1.1.0
+
+- **Deterministic edge-case corpus.** Every `check()` call automatically
+  runs an all-zero and an all-`0xFF` byte buffer before any random
+  generation, exercising every generator's boundary values on every run,
+  not just probabilistically.
+- **`generationBudget()` on `@Property`.** The existing
+  `withGenerationBudget(int)` builder method is now reachable directly
+  from the JUnit annotation, matching `seed()` and `name()`.
+- **`Generators.exhaustive(T...)`.** A generator for small, explicit
+  domains that guarantees the first and last supplied values are
+  exercised via the edge-case corpus above.
+- **`Property.assuming(Predicate<T>)`.** A property-level precondition,
+  distinct from `Generator.filter()` -- checked once against the fully
+  assembled value right before the assertion runs, with its own
+  diagnostic reporting.
+- **Better shrinking for large lists.** A delta-debugging (ddmin-style)
+  chunk-removal pass now runs before the existing one-at-a-time span
+  deletion, substantially improving shrink quality and speed on failures
+  involving many list elements.
+- **Stateful/model-based testing.** A new `Command<Model, Real>` /
+  `Commands<Model, Real>` abstraction generates sequences of operations,
+  runs them against both a simplified model and the real system under
+  test, and shrinks the failing sequence itself -- built entirely on
+  existing generator composition, so sequence shrinking inherits the
+  chunk-removal improvement above for free.
+- **Pass-stats output.** A one-time banner and a per-property pass
+  summary (examples run, edge-case/random breakdown, invalid-run
+  breakdown) are now printed to stdout, suppressible via
+  `-Djhusk.banner=false`.
+
 ## Who Is JHusk For?
 
 JHusk is built for Java developers who write JUnit 5 tests and want stronger coverage than hand-picked examples can give. It's useful across a wide range of experience levels and project types.
@@ -87,7 +118,7 @@ Add the dependency to your `pom.xml`, inside the `<dependencies>` block:
 <dependency>
     <groupId>io.github.nikhilvirdi</groupId>
     <artifactId>jhusk</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <scope>test</scope>
 </dependency>
 ```
@@ -99,13 +130,13 @@ The `test` scope keeps JHusk out of your production classpath, since it's a test
 For Groovy-based `build.gradle` files:
 
 ```groovy
-testImplementation 'io.github.nikhilvirdi:jhusk:1.0.0'
+testImplementation 'io.github.nikhilvirdi:jhusk:1.1.0'
 ```
 
 For Kotlin DSL `build.gradle.kts` files:
 
 ```kotlin
-testImplementation("io.github.nikhilvirdi:jhusk:1.0.0")
+testImplementation("io.github.nikhilvirdi:jhusk:1.1.0")
 ```
 
 ### Verifying the Installation
@@ -122,7 +153,7 @@ or, for Gradle:
 gradle dependencies --configuration testCompileClasspath
 ```
 
-Either command should list `io.github.nikhilvirdi:jhusk:1.0.0` among the resolved dependencies. If it doesn't appear, double check the coordinates match exactly what's shown above, and that your build file's dependency block was saved correctly.
+Either command should list `io.github.nikhilvirdi:jhusk:1.1.0` among the resolved dependencies. If it doesn't appear, double check the coordinates match exactly what's shown above, and that your build file's dependency block was saved correctly.
 
 ## Getting Started
 
