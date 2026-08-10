@@ -87,7 +87,7 @@ Add the dependency to your `pom.xml`, inside the `<dependencies>` block:
 <dependency>
     <groupId>io.github.nikhilvirdi</groupId>
     <artifactId>jhusk</artifactId>
-    <version>1.1.0</version>
+    <version>1.1.1</version>
     <scope>test</scope>
 </dependency>
 ```
@@ -99,13 +99,13 @@ The `test` scope keeps JHusk out of your production classpath, since it's a test
 For Groovy-based `build.gradle` files:
 
 ```groovy
-testImplementation 'io.github.nikhilvirdi:jhusk:1.1.0'
+testImplementation 'io.github.nikhilvirdi:jhusk:1.1.1'
 ```
 
 For Kotlin DSL `build.gradle.kts` files:
 
 ```kotlin
-testImplementation("io.github.nikhilvirdi:jhusk:1.1.0")
+testImplementation("io.github.nikhilvirdi:jhusk:1.1.1")
 ```
 
 ### Verifying the Installation
@@ -122,7 +122,7 @@ or, for Gradle:
 gradle dependencies --configuration testCompileClasspath
 ```
 
-Either command should list `io.github.nikhilvirdi:jhusk:1.1.0` among the resolved dependencies. If it doesn't appear, double check the coordinates match exactly what's shown above, and that your build file's dependency block was saved correctly.
+Either command should list `io.github.nikhilvirdi:jhusk:1.1.1` among the resolved dependencies. If it doesn't appear, double check the coordinates match exactly what's shown above, and that your build file's dependency block was saved correctly.
 
 ## Getting Started
 

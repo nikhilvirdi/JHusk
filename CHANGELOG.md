@@ -4,6 +4,28 @@ All notable changes to JHusk are documented here, most recent release first.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-08-10
+
+A bug-fix release. No new features, no breaking changes; everything
+that worked in 1.1.0 continues to work exactly as before.
+
+### Fixed
+
+- **Generator.flatMap() crashing on a non-VALID upstream draw.**
+  flatMap() invoked its function on whatever the upstream generator
+  returned without checking its status first -- including a filter()
+  that had exhausted its retry budget and returned null. On the
+  deterministic edge-case corpus introduced in 1.1.0, a
+  filter().flatMap() chain where the filter rejects the value a
+  shrink-target buffer decodes to crashed deterministically on every
+  single check() call, misreported as GeneratorCrashException instead
+  of an ordinary invalid run. flatMap() now checks source status
+  before invoking its function, exactly like every other loop already
+  does for every other generator. Found by an independent 50-scenario
+  adversarial test suite run against the published 1.1.0 jar; see
+  https://github.com/nikhilvirdi/jhusk-adversarial-tests for the full
+  writeup.
+
 ## [1.1.0] - 2026-08-10
 
 A feature release adding stateful testing, a distinct precondition mechanism, better shrinking on large collections, and a handful of smaller additions, on top of one real bug fix. Nothing here breaks anything that worked in 1.0.1.
