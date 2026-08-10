@@ -10,37 +10,6 @@ This library is for Java developers writing unit tests who want their tests to c
 
 JHusk was built by a single developer as a way of bringing Hypothesis-style, internally-shrunk property-based testing to the JVM, an approach that, as far as this project's author is aware, no existing Java library takes in quite the same way.
 
-## What's New in 1.1.0
-
-- **Deterministic edge-case corpus.** Every `check()` call automatically
-  runs an all-zero and an all-`0xFF` byte buffer before any random
-  generation, exercising every generator's boundary values on every run,
-  not just probabilistically.
-- **`generationBudget()` on `@Property`.** The existing
-  `withGenerationBudget(int)` builder method is now reachable directly
-  from the JUnit annotation, matching `seed()` and `name()`.
-- **`Generators.exhaustive(T...)`.** A generator for small, explicit
-  domains that guarantees the first and last supplied values are
-  exercised via the edge-case corpus above.
-- **`Property.assuming(Predicate<T>)`.** A property-level precondition,
-  distinct from `Generator.filter()` -- checked once against the fully
-  assembled value right before the assertion runs, with its own
-  diagnostic reporting.
-- **Better shrinking for large lists.** A delta-debugging (ddmin-style)
-  chunk-removal pass now runs before the existing one-at-a-time span
-  deletion, substantially improving shrink quality and speed on failures
-  involving many list elements.
-- **Stateful/model-based testing.** A new `Command<Model, Real>` /
-  `Commands<Model, Real>` abstraction generates sequences of operations,
-  runs them against both a simplified model and the real system under
-  test, and shrinks the failing sequence itself -- built entirely on
-  existing generator composition, so sequence shrinking inherits the
-  chunk-removal improvement above for free.
-- **Pass-stats output.** A one-time banner and a per-property pass
-  summary (examples run, edge-case/random breakdown, invalid-run
-  breakdown) are now printed to stdout, suppressible via
-  `-Djhusk.banner=false`.
-
 ## Who Is JHusk For?
 
 JHusk is built for Java developers who write JUnit 5 tests and want stronger coverage than hand-picked examples can give. It's useful across a wide range of experience levels and project types.
@@ -364,7 +333,7 @@ A few things are worth knowing before you lean heavily on JHusk in a real projec
 
 `Generators.optionals(Generator<T>)` returns `Generator<T>`, not `Generator<Optional<T>>`. It produces a value that may be a plain Java `null`, rather than wrapping the value in an `Optional`. This is mentioned earlier in this document too, but it's worth repeating here since it's the single most common point of confusion for anyone reaching for this method for the first time.
 
-Generators have an internal size limit. JHusk encodes the values it generates as a stream of bytes, capped at 8KB per generated example, this is the same byte stream referenced throughout the Core Concepts section above. For the overwhelming majority of properties, this limit is completely invisible and never comes up. But if you generate a very large collection, tens of thousands of elements, or a very long string, you can run past that cap before JHusk finishes encoding it, and the run will fail with `PropertyExecutionException` reporting an exhausted budget rather than a normal generated value. This is a known, intentional constraint of the current design, not a bug, and it's covered in more detail in the Design & Architecture section below. If you hit it, the fix is usually to lower the collection's maximum size. The `/adversarial-tests` folder in this repository includes tests that specifically exercise this exact boundary and confirm the behavior is as expected.
+Generators have an internal size limit. JHusk encodes the values it generates as a stream of bytes, capped at 8KB per generated example, this is the same byte stream referenced throughout the Core Concepts section above. For the overwhelming majority of properties, this limit is completely invisible and never comes up. But if you generate a very large collection, tens of thousands of elements, or a very long string, you can run past that cap before JHusk finishes encoding it, and the run will fail with `PropertyExecutionException` reporting an exhausted budget rather than a normal generated value. This is a known, intentional constraint of the current design, not a bug, and it's covered in more detail in the Design & Architecture section below. If you hit it, the fix is usually to lower the collection's maximum size.
 
 JHusk requires Java 17 as a floor. There's no compatibility path for earlier Java versions, since the library relies on language features introduced in that release.
 
@@ -430,7 +399,7 @@ Failure persistence is written using a write-to-temporary-file-then-atomic-renam
 
 Most of JHusk's own test suite was written by the same person who built the library, which means it can share the same blind spots as the implementation itself. To get a second, more skeptical perspective, an independent adversarial test suite was written separately, working only against JHusk's public API as an external Maven dependency, with no knowledge of the internals.
 
-That suite lives in the `/adversarial-tests` folder of this repository and covers eight categories: boundary values, deeply nested composite generators, filters and generators that are impossible to satisfy, deliberately planted bugs, used to confirm shrinking actually finds and reports real failures rather than missing them, determinism and thread safety under concurrent use, large-scale stress cases, generic type inference across chained generators, and unusual or malformed API usage.
+That suite covered eight categories: boundary values, deeply nested composite generators, filters and generators that are impossible to satisfy, deliberately planted bugs, used to confirm shrinking actually finds and reports real failures rather than missing them, determinism and thread safety under concurrent use, large-scale stress cases, generic type inference across chained generators, and unusual or malformed API usage.
 
 It's worth being upfront about what that process actually found, rather than only reporting a final pass count.
 
@@ -438,13 +407,15 @@ Real bugs it caught: `Property.check()` originally threw plain `AssertionError` 
 
 Issues that turned out to be in the test suite itself, not JHusk: an apparent infinite loop traced back to a bug in the test's own planted binary search helper, not JHusk's shrinking logic. A few early failures came from incorrect assumptions baked into the tests themselves, wrong expected exception types, the `optionals()` misunderstanding mentioned throughout this document, and generators configured with overly strict exact sizes that were, in practice, nearly impossible to satisfy.
 
-A known, intentional design limit rather than a defect: the 8KB buffer cap described in Design & Architecture above. Several of the stress tests in `/adversarial-tests` generate very large collections specifically to exercise this limit, and assert that JHusk correctly reports `PropertyExecutionException` in that scenario, rather than silently succeeding, hanging, or producing an incorrect result.
+A known, intentional design limit rather than a defect: the 8KB buffer cap described in Design & Architecture above. Several of the stress tests generated very large collections specifically to exercise this limit, and asserted that JHusk correctly reported `PropertyExecutionException` in that scenario, rather than silently succeeding, hanging, or producing an incorrect result.
 
-The `/adversarial-tests` folder includes its own README with the full breakdown of every category, along with instructions for running the suite yourself against a locally installed or published copy of JHusk.
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for the full release history, including every fix and addition in each version.
 
 ## License
 
-JHusk is released under the license included in this repository's `LICENSE.md` file. See that file for the complete license text.
+JHusk is released under the license included in this repository's `LICENSE` file. See that file for the complete license text.
 
 ## Acknowledgments
 
