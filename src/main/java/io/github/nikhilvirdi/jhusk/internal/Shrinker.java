@@ -46,7 +46,8 @@ public final class Shrinker<T> {
         try {
             boolean changed;
             do {
-                changed = spanDeletion();
+                changed = chunkDeletion();
+                changed |= spanDeletion();
                 changed |= zeroing();
                 changed |= blockLowering();
                 changed |= blockDeduplication();
@@ -56,6 +57,76 @@ public final class Shrinker<T> {
             // current is always the smallest accepted shortlex buffer observed so far.
         }
         return current.clone();
+    }
+
+    /**
+     * Delta-debugging (ddmin-style) chunk removal for sibling list-element spans.
+     *
+     * spanDeletion() already removes one whole span at a time, largest-first, but
+     * for a list of many roughly-equal-sized elements that means one attempt can
+     * only ever remove one element. This pass instead tries deleting contiguous
+     * CHUNKS of sibling list-element spans -- starting at roughly half the list,
+     * then quarters, eighths, and so on -- so redundant runs of elements can
+     * collapse in a handful of attempts instead of one attempt per element.
+     * Individual-element cleanup below chunk size 2 is deliberately left to
+     * spanDeletion(), which already handles it; this pass stops once chunk size
+     * would drop below 2.
+     *
+     * Because every accepted candidate shifts the byte offsets of every span
+     * after the deleted range, this pass re-derives span structure fresh after
+     * every acceptance rather than working off stale Span objects, exactly like
+     * every other pass here does via tryCandidate() updating rootSpans.
+     */
+    private boolean chunkDeletion() {
+        boolean changedOverall = false;
+        boolean progress = true;
+        while (progress) {
+            progress = false;
+            for (Span list : allSpans()) {
+                if (!"list".equals(list.getLabel())) continue;
+                List<Span> elements = new ArrayList<>();
+                for (Span child : list.getChildren()) {
+                    if ("list-element".equals(child.getLabel())) elements.add(child);
+                }
+                if (!elements.isEmpty()) {
+                    Span last = elements.get(elements.size() - 1);
+                    if (last.size() == 1 && last.getChildren().isEmpty()) {
+                        elements.remove(elements.size() - 1);
+                    }
+                }
+                if (elements.size() < 2) continue;
+                if (tryChunkRemovalOnList(elements)) {
+                    changedOverall = true;
+                    progress = true;
+                    break;
+                }
+            }
+        }
+        return changedOverall;
+    }
+
+    /**
+     * Runs one ddmin sweep over {@code elements}: halves, quarters, eighths, ...
+     * down to (not including) chunk size 1, trying to delete each contiguous
+     * chunk at each granularity. Returns as soon as any single chunk deletion is
+     * accepted -- the caller re-derives fresh span structure and restarts from
+     * chunkDeletion()'s outer loop rather than continuing at stale offsets.
+     */
+    private boolean tryChunkRemovalOnList(List<Span> elements) {
+        int n = elements.size();
+        int chunkSize = (n + 1) / 2;
+        while (chunkSize >= 2) {
+            for (int start = 0; start < n; start += chunkSize) {
+                int end = Math.min(start + chunkSize, n);
+                Span first = elements.get(start);
+                Span lastEl = elements.get(end - 1);
+                if (tryCandidate(splice(current, first.getStart(), lastEl.getEnd(), new byte[0]))) {
+                    return true;
+                }
+            }
+            chunkSize = chunkSize / 2;
+        }
+        return false;
     }
 
     /** Removes coherent spans, trying the largest regions first. */
