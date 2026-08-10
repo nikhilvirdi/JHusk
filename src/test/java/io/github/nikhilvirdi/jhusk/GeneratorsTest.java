@@ -577,6 +577,61 @@ class GeneratorsTest {
         }
 
         @Test
+        @DisplayName("filter().flatMap() no longer crashes with GeneratorCrashException when filter exhausts on the edge-case buffer")
+        void filterFlatMapDoesNotCrashWhenFilterExhaustsOnEdgeCaseBuffer() {
+            // integers(0, 10) decodes to 0 (its D4 shrink target) on the all-zero edge-case buffer
+            // that every check() call runs automatically; rejecting exactly 0 means the filter
+            // deterministically exhausts its retry budget on that buffer (the whole buffer is
+            // zero-filled, so every retry attempt also decodes to 0) and marks the run INVALID
+            // before flatMap's f ever gets a value. Before the fix, flatMap invoked f on the null
+            // that an exhausted filter returns, crashing with an unrelated NullPointerException
+            // that Property misclassified as GeneratorCrashException.
+            Generator<Integer> gen = Generators.integers(0, 10)
+                    .filter(x -> x != 0)
+                    .flatMap(x -> Generators.integers(x, x + 5));
+
+            Property<Integer> property = Property.forAll(gen, value -> { });
+
+            assertDoesNotThrow(() -> property.check(),
+                    "flatMap must not invoke f on a non-VALID upstream draw");
+        }
+
+        @Test
+        @DisplayName("filter().flatMap() still generates valid values when the filter is not exhausted")
+        void filterFlatMapChainStillWorksForNonExhaustedFilter() {
+            Generator<Integer> gen = Generators.integers(0, 100)
+                    .filter(x -> x % 2 != 0) // reject only even numbers
+                    .flatMap(x -> Generators.integers(x, x + 10));
+
+            SplittableRandom random = new SplittableRandom(7);
+            for (int i = 0; i < 50; i++) {
+                DataSource ds = new DataSource(random.nextLong());
+                Integer result = gen.generate(ds);
+                ds.freeze();
+
+                assertEquals(DataSource.Status.VALID, ds.getStatus());
+                assertNotNull(result);
+            }
+        }
+
+        @Test
+        @DisplayName("flatMap short-circuits without invoking f when the upstream draw overruns")
+        void flatMapShortCircuitsOnOverrun() {
+            AtomicInteger fInvocations = new AtomicInteger(0);
+            Generator<Integer> gen = Generators.integers(0, 100).flatMap(x -> {
+                fInvocations.incrementAndGet();
+                return Generators.integers(x, x + 10);
+            });
+
+            DataSource ds = new DataSource(new byte[0]); // empty buffer -> immediate OVERRUN
+            Integer result = gen.generate(ds);
+
+            assertEquals(DataSource.Status.OVERRUN, ds.getStatus());
+            assertNull(result, "flatMap should return null when the upstream draw overruns");
+            assertEquals(0, fInvocations.get(), "f must never be invoked when the upstream status is not VALID");
+        }
+
+        @Test
         @DisplayName("oneOf with an all-zero buffer selects the first alternative")
         void oneOfWithAllZeroBufferSelectsFirstAlternative() {
             Generator<String> gen = Generators.oneOf(

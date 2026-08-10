@@ -158,11 +158,31 @@ public interface Generator<T> {
      * integrated/tree-based shrinking): both draws just continue consuming the same
      * {@link DataSource} sequentially, so no extra machinery is needed to keep them in sync.
      *
+     * <p>If this generator's draw is not {@link DataSource.Status#VALID} (e.g. a composed
+     * {@link #filter(Predicate)} exhausted its retry budget), {@code flatMap} short-circuits
+     * without invoking {@code f}, propagating the non-VALID status exactly like any other
+     * generator would.
+     *
      * @param f produces the next generator from this generator's value
      * @param <R> the resulting value type
      * @return a generator combining both draws
      */
     default <R> Generator<R> flatMap(Function<T, Generator<R>> f) {
-        return source -> f.apply(generate(source)).generate(source);
+        return source -> {
+            T value = generate(source);
+            if (source.getStatus() != DataSource.Status.VALID) {
+                // The upstream generator (commonly a filter() that exhausted
+                // its retry budget) already marked this run non-VALID. Do not
+                // invoke f on whatever value happened to come back (often
+                // null) -- that would apply user code to a value that was
+                // never meant to be used, typically crashing with an
+                // unrelated exception instead of surfacing as the ordinary
+                // invalid run this already is. Short-circuit and let the
+                // caller's existing INVALID/OVERRUN handling take it from
+                // here, exactly as it already does for every other generator.
+                return null;
+            }
+            return f.apply(value).generate(source);
+        };
     }
 }
