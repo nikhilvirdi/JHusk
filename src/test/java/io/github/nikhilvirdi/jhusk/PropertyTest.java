@@ -542,4 +542,98 @@ class PropertyTest {
             });
         }
     }
+
+    @Nested
+    @DisplayName("Property.assuming(Predicate<T>) precondition tests (Item #5)")
+    class PropertyAssumingTests {
+
+        @Test
+        @DisplayName("assuming(x -> x > 0) skips non-positive values and only passes positive values to assertion")
+        void assumingSkipsInvalidValues() {
+            List<Integer> received = new ArrayList<>();
+            Property.forAll(Generators.integers(-100, 100), x -> {
+                received.add(x);
+                assertTrue(x > 0, "Assertion should only receive positive integers");
+            }).assuming(x -> x > 0).examples(50).check(12345L);
+
+            assertFalse(received.isEmpty(), "Assertion should have run on positive values");
+            assertTrue(received.stream().allMatch(x -> x > 0), "All received values must satisfy assumption");
+        }
+
+        @Test
+        @DisplayName("assuming(v -> false) rejecting every value throws FilterExhaustedException with assumption diagnostic")
+        void alwaysFalseAssumptionThrowsFilterExhaustedException() {
+            FilterExhaustedException ex = assertThrows(FilterExhaustedException.class, () ->
+                Property.forAll(Generators.integers(), v -> { })
+                    .assuming(v -> false)
+                    .check(1L)
+            );
+
+            assertTrue(ex.getMessage().contains("Property.assuming(...) is too restrictive"),
+                "Message must indicate cause is Property.assuming(...), not a filter()");
+        }
+
+        @Test
+        @DisplayName("Mixed overrun and assumption rejections throw base PropertyExecutionException")
+        void mixedOverrunAndAssumptionRejectionsThrowBasePropertyExecutionException() {
+            // A custom generator that simulates overruns 50% of the time via DataSourceOverrunException
+            Generator<Integer> mixedGen = source -> {
+                int drawn = source.drawInt();
+                if (drawn % 2 == 0) {
+                    throw new io.github.nikhilvirdi.jhusk.internal.DataSourceOverrunException("simulated overrun");
+                }
+                return drawn;
+            };
+
+            PropertyExecutionException ex = assertThrows(PropertyExecutionException.class, () ->
+                Property.forAll(mixedGen, v -> { })
+                    .assuming(v -> false) // rejects the remaining non-overrun values
+                    .check(1L)
+            );
+
+            assertFalse(ex instanceof FilterExhaustedException, "Mixed causes must NOT throw FilterExhaustedException");
+            assertFalse(ex instanceof GenerationBudgetExceededException, "Mixed causes must NOT throw GenerationBudgetExceededException");
+            assertTrue(ex.getMessage().contains("assumption rejections (assuming(...))"),
+                "Message must list assumption rejections in mixed cause description");
+        }
+
+        @Test
+        @DisplayName("assuming() rejecting deterministic edge cases counts as invalid runs without crashing")
+        void assumingRejectsEdgeCasesCountedAsInvalidRuns() {
+            // Edge cases 0x00 and 0xFF for integers(0, 100) generate 0 and 100.
+            // Rejecting x == 0 and x == 100 via assuming() means both edge cases are rejected.
+            AssertionError error = assertThrows(AssertionError.class, () ->
+                Property.forAll(Generators.integers(0, 100), x -> {
+                    fail("failing assertion");
+                })
+                .assuming(x -> x != 0 && x != 100)
+                .examples(1)
+                .check(42L)
+            );
+
+            String report = error.getMessage();
+            assertTrue(report.contains("Invalid runs: 2"),
+                "The two rejected edge cases (0 and 100) must count as 2 invalid runs in the execution statistics");
+        }
+
+        @Test
+        @DisplayName("filter() and assuming() operate independently and both apply correctly")
+        void filterAndAssumingOperateIndependently() {
+            // Generator filters out odd numbers (only produces even numbers)
+            Generator<Integer> evenGen = Generators.integers(0, 100).filter(x -> x % 2 == 0);
+
+            // Property assumes numbers are > 50
+            List<Integer> received = new ArrayList<>();
+            Property.forAll(evenGen, x -> {
+                received.add(x);
+                assertTrue(x % 2 == 0 && x > 50, "Assertion must receive even numbers > 50");
+            })
+            .assuming(x -> x > 50)
+            .examples(30)
+            .check(999L);
+
+            assertFalse(received.isEmpty());
+            assertTrue(received.stream().allMatch(x -> x % 2 == 0 && x > 50));
+        }
+    }
 }

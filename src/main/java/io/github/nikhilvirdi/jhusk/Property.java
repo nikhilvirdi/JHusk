@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.Optional;
 import java.util.SplittableRandom;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -81,6 +82,7 @@ public final class Property<T> {
     private FailureStorage failureStorage = new FailureStorage();
     private Duration timeoutPerExample = null;
     private int generationBudgetBytes = DataSource.MAX_BUFFER_SIZE;
+    private Predicate<T> assumption = null;
 
     private Property(String name, Generator<T> generator, Consumer<T> assertion) {
         this.name = name;
@@ -187,6 +189,38 @@ public final class Property<T> {
      */
     public Property<T> maxInvalidRuns(int maxInvalidRuns) {
         this.maxInvalidRuns = maxInvalidRuns;
+        return this;
+    }
+
+    /**
+     * Sets a property-level precondition checked against each successfully
+     * generated value, before the assertion runs. Distinct from
+     * {@link Generator#filter}: a filter narrows what a generator can ever
+     * produce and is checked per-value as it's drawn (potentially deep
+     * inside a composed generator); an assumption is checked once, against
+     * the final fully-assembled value, right before the assertion --
+     * appropriate for preconditions that only make sense once the whole
+     * value exists (e.g. "the two halves of this generated pair must not be
+     * equal"), rather than being expressible as a constraint on any single
+     * generator in isolation.
+     *
+     * <p>A value rejected by this predicate counts as an invalid run,
+     * exactly like a filter rejection or buffer overrun -- it does not
+     * count toward {@link #examples(int)}, and it counts against
+     * {@link #maxInvalidRuns(int)}. It is reported separately in
+     * diagnostics from filter/overrun causes so an over-restrictive
+     * assumption is distinguishable from an over-restrictive filter.
+     *
+     * <p>Not currently reachable from the {@code @Property} JUnit
+     * annotation -- direct {@link #forAll} usage only, matching
+     * {@link #withGenerationBudget(int)}'s current scope.
+     *
+     * @param assumption the precondition a generated value must satisfy to
+     *                    be checked against the assertion
+     * @return this instance, for fluent chaining
+     */
+    public Property<T> assuming(Predicate<T> assumption) {
+        this.assumption = assumption;
         return this;
     }
 
@@ -335,6 +369,7 @@ public final class Property<T> {
         int successfulRuns = 0;
         int invalidRuns = 0;
         int overrunRuns = 0;
+        int assumptionRejections = 0;
 
         for (byte fillByte : EDGE_CASE_FILL_BYTES) {
             byte[] edgeBuffer = buildEdgeCaseBuffer(fillByte);
@@ -360,6 +395,13 @@ public final class Property<T> {
                 invalidRuns++;
                 continue;
             }
+
+            if (assumption != null && !assumption.test(value)) {
+                invalidRuns++;
+                assumptionRejections++;
+                continue;
+            }
+
             try {
                 runAssertion(value, masterSeed);
                 successfulRuns++;
@@ -392,6 +434,7 @@ public final class Property<T> {
                 // and per-element byte width whose product exceeds the buffer cap. That failure
                 // mode has nothing to do with filtering and the old one-size-fits-all message was
                 // actively misleading for it.
+                int filterRejections = invalidRuns - overrunRuns - assumptionRejections;
                 String reason;
                 if (overrunRuns == invalidRuns) {
                     reason = String.format(
@@ -405,14 +448,16 @@ public final class Property<T> {
                         + "collection with a local PRNG instead of drawing one span per element.",
                         DataSource.MAX_BUFFER_SIZE, DataSource.MAX_BUFFER_SIZE
                     );
-                } else if (overrunRuns == 0) {
+                } else if (assumptionRejections == invalidRuns) {
+                    reason = "This usually means Property.assuming(...) is too restrictive for the values this generator tends to produce.";
+                } else if (overrunRuns == 0 && assumptionRejections == 0) {
                     reason = "This usually means a filter(x -> ...) predicate is too restrictive and rejecting most generated values.";
                 } else {
                     reason = String.format(
-                        "%d of those were buffer overruns (DataSource.MAX_BUFFER_SIZE, %d bytes) and %d were "
-                        + "explicit rejections (filter(...)/assume(...)). Check both: bounds that require too "
-                        + "many bytes per example, and a predicate that's too restrictive.",
-                        overrunRuns, DataSource.MAX_BUFFER_SIZE, invalidRuns - overrunRuns
+                        "%d of those were buffer overruns (DataSource.MAX_BUFFER_SIZE, %d bytes), %d were "
+                        + "filter rejections (filter(...)), and %d were assumption rejections (assuming(...)). "
+                        + "Check bounds and predicates.",
+                        overrunRuns, DataSource.MAX_BUFFER_SIZE, filterRejections, assumptionRejections
                     );
                 }
                 String budgetMessage = String.format(
@@ -422,7 +467,9 @@ public final class Property<T> {
                 );
                 if (overrunRuns == invalidRuns) {
                     throw new GenerationBudgetExceededException(budgetMessage);
-                } else if (overrunRuns == 0) {
+                } else if (assumptionRejections == invalidRuns) {
+                    throw new FilterExhaustedException(budgetMessage);
+                } else if (overrunRuns == 0 && assumptionRejections == 0) {
                     throw new FilterExhaustedException(budgetMessage);
                 } else {
                     throw new PropertyExecutionException(budgetMessage);
@@ -449,6 +496,12 @@ public final class Property<T> {
 
             if (source.getStatus() == DataSource.Status.INVALID) {
                 invalidRuns++;
+                continue;
+            }
+
+            if (assumption != null && !assumption.test(value)) {
+                invalidRuns++;
+                assumptionRejections++;
                 continue;
             }
 
