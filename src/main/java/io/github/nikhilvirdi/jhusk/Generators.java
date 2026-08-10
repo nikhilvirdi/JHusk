@@ -351,6 +351,56 @@ public final class Generators {
     }
 
     /**
+     * Returns a generator that selects among {@code values} directly.
+     *
+     * <p><b>"Exhaustive" — what this guarantees and what it doesn't:</b> This
+     * generator uses the same D3 multiplicative-scaling selector as
+     * {@link #oneOf}, so {@code values[0]} is the D4 shrink target (selected
+     * by an all-zero byte buffer) and {@code values[values.length - 1]} is
+     * selected by an all-0xFF byte buffer. Because {@code Property.check()}
+     * deterministically runs both of those exact byte buffers as edge cases
+     * before any random generation, the FIRST and LAST values supplied here
+     * are guaranteed to be exercised on every single {@code check()} call,
+     * unconditionally — not just probabilistically. Values strictly between
+     * the first and last are drawn the same way {@link #oneOf} draws its
+     * alternatives: uniformly at random, with no individual coverage
+     * guarantee. For a small domain (2-3 values) this means the practical
+     * difference from {@link #oneOf} is small; the value of this method is
+     * documenting that guarantee explicitly under a name that signals
+     * "small closed domain" intent to a reader, and giving JHusk a clear,
+     * committed API surface to build genuinely full N-way enumeration onto
+     * in a later release without a breaking change.
+     *
+     * <p><b>Span:</b> labeled {@code "exhaustive"}, wrapping the selector
+     * draw only — {@code values} are plain values, not generators, so they
+     * carry no nested span of their own.
+     *
+     * @param values the candidate values to select among (at least one required)
+     * @param <T> the value type
+     * @return a generator that selects one of {@code values}
+     * @throws IllegalArgumentException if {@code values} is empty
+     */
+    @SafeVarargs
+    public static <T> Generator<T> exhaustive(T... values) {
+        if (values.length == 0) {
+            throw new IllegalArgumentException("exhaustive requires at least one value");
+        }
+        final long range = values.length;
+
+        return source -> {
+            source.startSpan("exhaustive");
+            try {
+                int rawSigned = source.drawInt();
+                long rawUnsigned = Integer.toUnsignedLong(rawSigned);
+                int index = (int) ((rawUnsigned * range) >>> 32);
+                return values[index];
+            } finally {
+                source.endSpan();
+            }
+        };
+    }
+
+    /**
      * Returns a generator that draws zero bytes and always returns {@code value}.
      *
      * @param value the constant value to return

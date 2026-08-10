@@ -967,4 +967,54 @@ class GeneratorsTest {
                 + "for nullProbability=0.5 over " + totalCount.get() + " samples");
         }
     }
+
+    @Nested
+    @DisplayName("Exhaustive & Booleans Edge-Case Tests (Item #4)")
+    class ExhaustiveAndBooleansEdgeCaseTests {
+
+        @Test
+        @DisplayName("booleans(): deterministic edge-case corpus exercises both false and true even with examples(1)")
+        void booleansEdgeCaseCoverage() {
+            Set<Boolean> valuesSeen = new java.util.HashSet<>();
+            Property.forAll(Generators.booleans(), v -> {
+                valuesSeen.add(v);
+            }).examples(1).check();
+
+            assertTrue(valuesSeen.contains(false), "booleans() must exercise false via the all-zero edge-case buffer");
+            assertTrue(valuesSeen.contains(true), "booleans() must exercise true via the all-0xFF edge-case buffer");
+        }
+
+        @Test
+        @DisplayName("exhaustive() with zero arguments throws IllegalArgumentException")
+        void exhaustiveZeroArgumentsThrows() {
+            assertThrows(IllegalArgumentException.class,
+                () -> Generators.exhaustive(),
+                "exhaustive() with 0 arguments must throw IllegalArgumentException");
+        }
+
+        @Test
+        @DisplayName("exhaustive(a, b, c): deterministic edge-case corpus exercises first ('a') and last ('c') even with examples(1)")
+        void exhaustiveExercisesFirstAndLastEdgeCases() {
+            Set<String> valuesSeen = new java.util.HashSet<>();
+            Property.forAll(Generators.exhaustive("a", "b", "c"), v -> {
+                valuesSeen.add(v);
+            }).examples(1).check();
+
+            assertTrue(valuesSeen.contains("a"), "exhaustive() must exercise first value ('a') via the all-zero edge-case buffer");
+            assertTrue(valuesSeen.contains("c"), "exhaustive() must exercise last value ('c') via the all-0xFF edge-case buffer");
+        }
+
+        @Test
+        @DisplayName("exhaustive(first, second, third): property failing on all values shrinks to values[0]")
+        void exhaustiveShrinksToFirstValue() {
+            AssertionError error = assertThrows(AssertionError.class, () ->
+                Property.forAll(Generators.exhaustive("first", "second", "third"), v -> {
+                    fail("failing for all values");
+                }).check()
+            );
+
+            assertTrue(error.getMessage().contains("first"),
+                "Property failing on exhaustive() must shrink to values[0] ('first')");
+        }
+    }
 }
