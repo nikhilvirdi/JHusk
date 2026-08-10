@@ -1,4 +1,4 @@
-# Build output
+﻿# Build output
 target/
 out/
 
@@ -14,11 +14,13 @@ out/
 .DS_Store
 Thumbs.db
 
-# Internal planning docs — not for public repo
-WORKPLAN.md
+
 
 # Local test failure persistence run artifacts
 .jhusk/
 
 # Test utilities
-adversarial-tests/
+adversarial-tests/
+
+
+
