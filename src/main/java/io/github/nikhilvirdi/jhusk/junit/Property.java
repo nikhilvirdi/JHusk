@@ -44,4 +44,15 @@ public @interface Property {
      * @return the explicit property identity name, or empty string for auto-detected identity
      */
     String name() default "";
+
+    /**
+     * An explicit per-example generation buffer capacity in bytes, overriding the
+     * default {@link io.github.nikhilvirdi.jhusk.internal.DataSource#MAX_BUFFER_SIZE}
+     * (8192 bytes). Use this when a property's generators (large collections, long
+     * strings, deep nesting) legitimately need more than 8KB per example and would
+     * otherwise throw {@link io.github.nikhilvirdi.jhusk.GenerationBudgetExceededException}.
+     *
+     * @return the generation budget in bytes, or {@code -1} to use the default
+     */
+    int generationBudget() default -1;
 }

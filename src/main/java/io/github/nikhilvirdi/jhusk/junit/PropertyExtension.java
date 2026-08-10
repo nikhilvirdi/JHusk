@@ -120,6 +120,10 @@ public class PropertyExtension implements TestTemplateInvocationContextProvider 
                 }
             ).examples(propAnnotation.examples());
 
+            if (propAnnotation.generationBudget() != -1) {
+                runner.withGenerationBudget(propAnnotation.generationBudget());
+            }
+
             // 4. Execute the property loop
             if (propAnnotation.seed().isBlank()) {
                 runner.check();

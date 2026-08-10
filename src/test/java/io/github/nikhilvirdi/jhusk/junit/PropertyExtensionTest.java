@@ -95,6 +95,14 @@ class PropertyExtensionTest {
         }
     }
 
+    static class GenerationBudgetTestCases {
+        @Property(generationBudget = 2, examples = 10)
+        void budgetExceededProperty(@ForAll int x) {
+            // ints require 4 bytes. A budget of 2 will cause a GenerationBudgetExceededException.
+            assertTrue(true);
+        }
+    }
+
     @Test
     @DisplayName("Two different unnamed @Property methods get distinct stored-failure identities, not a shared one")
     void unnamedPropertiesDoNotCollideOnAutoDetectedIdentity() throws IOException {
@@ -138,6 +146,30 @@ class PropertyExtensionTest {
 
         events.failed().list().forEach(System.out::println);
         events.assertStatistics(stats -> stats.started(3).succeeded(3).failed(0));
+    }
+
+    @Test
+    @DisplayName("generationBudget is respected when set via @Property annotation")
+    void generationBudgetIsRespected() {
+        Events events = EngineTestKit.engine("junit-jupiter")
+                .selectors(selectClass(GenerationBudgetTestCases.class))
+                .execute()
+                .testEvents();
+
+        events.assertStatistics(stats -> stats.started(1).succeeded(0).failed(1));
+
+        List<Event> failedEvents = events.failed().list();
+        assertEquals(1, failedEvents.size());
+
+        Throwable error = ((org.junit.platform.engine.TestExecutionResult) failedEvents.get(0).getPayload().get()).getThrowable().get();
+        String msg = error.getMessage();
+        Throwable cause = error.getCause();
+        
+        boolean hasBudgetExceeded = error.getClass().getSimpleName().equals("GenerationBudgetExceededException") ||
+            msg.contains("GenerationBudgetExceededException") || 
+            (cause != null && cause.getClass().getSimpleName().equals("GenerationBudgetExceededException"));
+            
+        assertTrue(hasBudgetExceeded, "Expected GenerationBudgetExceededException to be thrown due to budget=2");
     }
 
     @Test
