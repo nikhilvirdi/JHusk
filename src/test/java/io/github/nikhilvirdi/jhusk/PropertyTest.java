@@ -237,7 +237,7 @@ class PropertyTest {
 
             String msg = error.getMessage();
             assertTrue(msg.contains("Execution Statistics:"), "Execution statistics section present");
-            assertTrue(msg.contains("Examples run: 1"), "Examples run count accurate");
+            assertTrue(msg.contains("Examples run: 3"), "Examples run count accurate");
             assertTrue(msg.contains("Invalid runs: 0"), "Invalid runs count accurate");
             assertTrue(msg.contains("Shrink attempts:"), "Shrink attempts present");
 
@@ -463,6 +463,83 @@ class PropertyTest {
             assertThrows(IllegalArgumentException.class,
                 () -> Property.forAll(gen, v -> { }).withGenerationBudget(-5),
                 "withGenerationBudget(-5) must throw IllegalArgumentException immediately");
+        }
+    }
+
+    @Nested
+    @DisplayName("Deterministic Edge-Case Seed Corpus tests (0x00 and 0xFF buffers)")
+    class EdgeCaseSeedCorpusTests {
+
+        @Test
+        @DisplayName("All-zero byte buffer deterministically generates min-of-range value")
+        void allZeroEdgeCaseHitsMin() {
+            Generator<Integer> gen = Generators.integers(10, 100);
+
+            // Property that fails ONLY when value == 10 (the min of range, produced by 0x00 fill)
+            AssertionError error = assertThrows(AssertionError.class, () -> {
+                Property.forAll(gen, value -> {
+                    assertNotEquals(10, value, "Value equals min of range (10)");
+                }).check(12345L);
+            });
+
+            assertTrue(error.getMessage().contains("Property Falsified!"),
+                "Should fail due to deterministic 0x00 edge case hitting min");
+            assertTrue(error.getMessage().contains("Value equals min of range (10)"),
+                "Original failure reason should be included");
+        }
+
+        @Test
+        @DisplayName("All-0xFF byte buffer deterministically generates max-of-range value")
+        void allFFEdgeCaseHitsMax() {
+            Generator<Integer> gen = Generators.integers(10, 100);
+
+            // Property that fails ONLY when value == 100 (the max of range, produced by 0xFF fill)
+            AssertionError error = assertThrows(AssertionError.class, () -> {
+                Property.forAll(gen, value -> {
+                    assertNotEquals(100, value, "Value equals max of range (100)");
+                }).check(12345L);
+            });
+
+            assertTrue(error.getMessage().contains("Property Falsified!"),
+                "Should fail due to deterministic 0xFF edge case hitting max");
+            assertTrue(error.getMessage().contains("Value equals max of range (100)"),
+                "Original failure reason should be included");
+        }
+
+        @Test
+        @DisplayName("Edge-case failure produces correctly formatted Property Falsified report")
+        void edgeCaseFailureProducesFormattedReport() {
+            Generator<Integer> gen = Generators.integers(10, 100);
+
+            AssertionError error = assertThrows(AssertionError.class, () -> {
+                Property.forAll(gen, value -> {
+                    assertTrue(value > 10, "Value must be > 10");
+                }).check(999L);
+            });
+
+            String message = error.getMessage();
+            assertTrue(message.contains("Property Falsified!"), "Report header present");
+            assertTrue(message.contains("Falsifying (shrunk) value:"), "Shrunk value header present");
+            assertTrue(message.contains("Original (unshrunk) value:"), "Original value header present");
+            assertTrue(message.contains("Reproduction:"), "Reproduction section present");
+            assertTrue(message.contains("check(999L)"), "Reproduction seed present");
+            assertTrue(message.contains("Execution Statistics:"), "Execution statistics section present");
+            assertTrue(message.contains("Examples run: 1"), "Examples run count accurate");
+            assertTrue(message.contains("Invalid runs: 0"), "Invalid runs count accurate");
+        }
+
+        @Test
+        @DisplayName("examples(1) budget accounting completes cleanly when both edge cases pass")
+        void examplesOneAccountingCompletedWithoutHanging() {
+            Generator<Integer> gen = Generators.integers();
+
+            // With examples(1), 2 passing edge cases satisfy successfulRuns >= 1 immediately.
+            // Must complete without hanging, over-running, or attempting additional random runs.
+            assertDoesNotThrow(() -> {
+                Property.forAll(gen, value -> {
+                    // Always passes
+                }).examples(1).check(999L);
+            });
         }
     }
 }

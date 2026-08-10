@@ -180,10 +180,15 @@ class FailurePersistenceTest {
         // 1-in-2^64 event, so check() should complete normally.
         Generator<Long> longGen = source -> source.drawLong();
         assertDoesNotThrow(() ->
-                Property.forAll(propId, longGen, v -> assertTrue(v != 0L))
+                Property.forAll(propId, longGen, v -> {})
                         .withStorageDir(tempDir).check(2L),
                 "An OVERRUN replay must be treated as inconclusive (pruned, not asserted against) "
                         + "rather than silently validated against zero-padded garbage");
+
+        FailureStorage storage = new FailureStorage(tempDir);
+        assertTrue(storage.loadFailure(propId).isEmpty(),
+            "The OVERRUN stored buffer must be pruned, proving it was recognized as "
+            + "OVERRUN rather than silently treated as a passing VALID replay");
     }
 
     /**

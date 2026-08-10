@@ -70,6 +70,8 @@ import java.util.concurrent.TimeoutException;
  */
 public final class Property<T> {
 
+    private static final byte[] EDGE_CASE_FILL_BYTES = { (byte) 0x00, (byte) 0xFF };
+
     private final Generator<T> generator;
     private final Consumer<T> assertion;
     
@@ -232,6 +234,9 @@ public final class Property<T> {
     /**
      * Checks the property using a randomly chosen master seed.
      *
+     * <p>Before generating random examples, also runs two deterministic edge cases (all-zero and
+     * all-0xFF byte buffers) covering every generator's D4 shrink-target boundaries.
+     *
      * <p>Equivalent to {@code check(new SplittableRandom().nextLong())}: replays any stored
      * failure first (see {@link #check(long)}), then generates fresh random examples if none is
      * stored or the stored one no longer reproduces.
@@ -245,6 +250,9 @@ public final class Property<T> {
 
     /**
      * Checks the property using the specified master seed.
+     * 
+     * <p>Before generating random examples, also runs two deterministic edge cases (all-zero and
+     * all-0xFF byte buffers) covering every generator's D4 shrink-target boundaries.
      * 
      * <p>Replays stored failures from {@code .jhusk/} first before generating random examples.
      * If a stored failure still fails, it reports immediately without generating new examples.
@@ -322,12 +330,55 @@ public final class Property<T> {
         }
 
         // -------------------------------------------------------------------
-        // Step 2: Generate random examples
+        // Step 1.5: Deterministic edge cases
         // -------------------------------------------------------------------
-        SplittableRandom masterPrng = new SplittableRandom(masterSeed);
         int successfulRuns = 0;
         int invalidRuns = 0;
         int overrunRuns = 0;
+
+        for (byte fillByte : EDGE_CASE_FILL_BYTES) {
+            byte[] edgeBuffer = buildEdgeCaseBuffer(fillByte);
+            DataSource edgeSource = new DataSource(edgeBuffer, generationBudgetBytes);
+            T value;
+            try {
+                value = generator.generate(edgeSource);
+                edgeSource.freeze();
+            } catch (io.github.nikhilvirdi.jhusk.internal.DataSourceOverrunException e) {
+                invalidRuns++;
+                overrunRuns++;
+                continue;
+            } catch (Throwable t) {
+                throw new GeneratorCrashException(
+                    "Generator crashed during data generation (edge-case fillByte=0x"
+                    + String.format("%02X", fillByte) + ")", t);
+            }
+            if (edgeSource.getStatus() == DataSource.Status.OVERRUN) {
+                invalidRuns++;
+                overrunRuns++;
+                continue;
+            } else if (edgeSource.getStatus() == DataSource.Status.INVALID) {
+                invalidRuns++;
+                continue;
+            }
+            try {
+                runAssertion(value, masterSeed);
+                successfulRuns++;
+            } catch (Throwable failure) {
+                if (failure instanceof PropertyTimeoutException) {
+                    throw (PropertyTimeoutException) failure; // should not occur here since
+                    // edge cases don't use the timeoutPerExample path, but preserve the same
+                    // guard as the random loop for consistency if this code is ever touched later
+                }
+                throw reportFalsification(
+                    edgeBuffer, edgeSource.getRootSpans(), value, failure,
+                    propertyId, masterSeed, successfulRuns + 1, invalidRuns);
+            }
+        }
+
+        // -------------------------------------------------------------------
+        // Step 2: Generate random examples
+        // -------------------------------------------------------------------
+        SplittableRandom masterPrng = new SplittableRandom(masterSeed);
 
         while (successfulRuns < examples) {
             if (invalidRuns > maxInvalidRuns) {
@@ -403,37 +454,7 @@ public final class Property<T> {
 
             // Valid generation, now apply the property assertion
             try {
-                if (timeoutPerExample == null) {
-                    assertion.accept(value);
-                } else {
-                    ExecutorService executor = Executors.newSingleThreadExecutor(new ThreadFactory() {
-                        @Override
-                        public Thread newThread(Runnable r) {
-                            Thread t = new Thread(r);
-                            t.setDaemon(true);
-                            t.setName("JHusk-timeout-worker");
-                            return t;
-                        }
-                    });
-                    
-                    final T valueForTimeout = value;
-                    Future<?> future = executor.submit(() -> assertion.accept(valueForTimeout));
-                    try {
-                        future.get(timeoutPerExample.toMillis(), TimeUnit.MILLISECONDS);
-                    } catch (TimeoutException e) {
-                        future.cancel(true);
-                        throw new PropertyTimeoutException(String.format(
-                            "Property example timed out after %s. Seed: %d. Value: %s",
-                            timeoutPerExample, masterSeed, String.valueOf(value)), e);
-                    } catch (ExecutionException e) {
-                        throw e.getCause(); // Unwrap real assertion failures
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new PropertyExecutionException("Thread was interrupted while waiting for property execution", e);
-                    } finally {
-                        executor.shutdownNow();
-                    }
-                }
+                runAssertion(value, masterSeed);
                 successfulRuns++;
             } catch (Throwable failure) {
                 // A timeout is not a falsification — bypass shrinking entirely.
@@ -445,51 +466,98 @@ public final class Property<T> {
 
                 // The property failed! Perform shrinking to find the minimal counterexample.
                 byte[] rawBuffer = source.getRecordedBuffer();
-
-                ShrinkHarness<T> harness = new ShrinkHarness<>(generator, assertion, failure.getClass());
-                byte[] shrunkBuffer = new Shrinker<>(harness).shrink(rawBuffer, source.getRootSpans());
-
-                // Save the minimal shrunk buffer to disk for future runs
-                failureStorage.saveFailure(propertyId, shrunkBuffer);
-
-                // Replay shrunk buffer to decode the minimal falsifying value
-                DataSource shrunkSource = new DataSource(shrunkBuffer);
-                T shrunkValue = generator.generate(shrunkSource);
-
-                int examplesRun = successfulRuns + 1;
-                int shrinkAttempts = harness.getAttempts();
-
-                String report = String.format(
-                    "\n\n======================================================================\n" +
-                    "Property Falsified!\n" +
-                    "======================================================================\n\n" +
-                    "Falsifying (shrunk) value:\n" +
-                    "  %s\n\n" +
-                    "Original (unshrunk) value:\n" +
-                    "  %s\n\n" +
-                    "Reproduction:\n" +
-                    "  To reproduce this exact failure, run: check(%dL) (Seed: %dL)\n\n" +
-                    "Execution Statistics:\n" +
-                    "  Examples run: %d\n" +
-                    "  Invalid runs: %d\n" +
-                    "  Shrink attempts: %d\n\n" +
-                    "Original Exception:\n" +
-                    "  %s\n" +
-                    "======================================================================\n",
-                    String.valueOf(shrunkValue),
-                    String.valueOf(value),
-                    masterSeed,
-                    masterSeed,
-                    examplesRun,
-                    invalidRuns,
-                    shrinkAttempts,
-                    failure.toString()
-                );
-
-                AssertionError error = new AssertionError(report, failure);
-                throw error;
+                throw reportFalsification(
+                    rawBuffer, source.getRootSpans(), value, failure,
+                    propertyId, masterSeed, successfulRuns + 1, invalidRuns);
             }
         }
+    }
+
+    private void runAssertion(T value, long masterSeed) throws Throwable {
+        if (timeoutPerExample == null) {
+            assertion.accept(value);
+        } else {
+            ExecutorService executor = Executors.newSingleThreadExecutor(new ThreadFactory() {
+                @Override
+                public Thread newThread(Runnable r) {
+                    Thread t = new Thread(r);
+                    t.setDaemon(true);
+                    t.setName("JHusk-timeout-worker");
+                    return t;
+                }
+            });
+            
+            final T valueForTimeout = value;
+            Future<?> future = executor.submit(() -> assertion.accept(valueForTimeout));
+            try {
+                future.get(timeoutPerExample.toMillis(), TimeUnit.MILLISECONDS);
+            } catch (TimeoutException e) {
+                future.cancel(true);
+                throw new PropertyTimeoutException(String.format(
+                    "Property example timed out after %s. Seed: %d. Value: %s",
+                    timeoutPerExample, masterSeed, String.valueOf(value)), e);
+            } catch (ExecutionException e) {
+                throw e.getCause(); // Unwrap real assertion failures
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new PropertyExecutionException("Thread was interrupted while waiting for property execution", e);
+            } finally {
+                executor.shutdownNow();
+            }
+        }
+    }
+
+    private byte[] buildEdgeCaseBuffer(byte fillByte) {
+        byte[] buffer = new byte[generationBudgetBytes];
+        java.util.Arrays.fill(buffer, fillByte);
+        return buffer;
+    }
+
+    private AssertionError reportFalsification(
+        byte[] rawBuffer, java.util.List<io.github.nikhilvirdi.jhusk.internal.Span> rootSpans,
+        T unshrunkValue, Throwable failure, String propertyId,
+        long masterSeed, int examplesRun, int invalidRuns) {
+
+        ShrinkHarness<T> harness = new ShrinkHarness<>(generator, assertion, failure.getClass());
+        byte[] shrunkBuffer = new Shrinker<>(harness).shrink(rawBuffer, rootSpans);
+
+        // Save the minimal shrunk buffer to disk for future runs
+        failureStorage.saveFailure(propertyId, shrunkBuffer);
+
+        // Replay shrunk buffer to decode the minimal falsifying value
+        DataSource shrunkSource = new DataSource(shrunkBuffer);
+        T shrunkValue = generator.generate(shrunkSource);
+
+        int shrinkAttempts = harness.getAttempts();
+
+        String report = String.format(
+            "\n\n======================================================================\n" +
+            "Property Falsified!\n" +
+            "======================================================================\n\n" +
+            "Falsifying (shrunk) value:\n" +
+            "  %s\n\n" +
+            "Original (unshrunk) value:\n" +
+            "  %s\n\n" +
+            "Reproduction:\n" +
+            "  To reproduce this exact failure, run: check(%dL) (Seed: %dL)\n\n" +
+            "Execution Statistics:\n" +
+            "  Examples run: %d\n" +
+            "  Invalid runs: %d\n" +
+            "  Shrink attempts: %d\n\n" +
+            "Original Exception:\n" +
+            "  %s\n" +
+            "======================================================================\n",
+            String.valueOf(shrunkValue),
+            String.valueOf(unshrunkValue),
+            masterSeed,
+            masterSeed,
+            examplesRun,
+            invalidRuns,
+            shrinkAttempts,
+            failure.toString()
+        );
+
+        return new AssertionError(report, failure);
     }
 
     /**
