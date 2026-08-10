@@ -18,6 +18,18 @@ import java.util.Optional;
  * on a single shared index file, permits clean atomic file creation/deletion (pruning), and allows
  * developers to inspect or delete individual stored failures without touching others.
  *
+ * <p><b>CI Guidance:</b> Whether {@code .jhusk/} should be gitignored or
+ * cached in CI depends on what you want: gitignoring it means every CI run
+ * starts fresh and only catches a regression if the property re-discovers
+ * the failure on its own within that run's example budget: caching it
+ * (e.g. as a CI cache keyed on a stable identifier) means a previously-found
+ * failure is replayed and re-verified on every run, catching a regression
+ * immediately even if the random budget wouldn't otherwise re-find it. Most
+ * projects should gitignore {@code .jhusk/} in the repository itself (stored
+ * failures are local debugging artifacts, not source) but consider caching
+ * it as a CI build artifact if regression-catching consistency matters more
+ * than a clean-slate run.
+ *
  * <p>Most callers should reach this through {@link Property#withStorageDir(Path)} rather than
  * constructing or calling a {@code FailureStorage} directly; it is exposed as a standalone public
  * type for tooling that wants to inspect or manage a {@code .jhusk/} directory outside of running

@@ -687,6 +687,12 @@ public final class Generators {
      * still reproduces, so "smaller list buffer" not always implying "smaller set" is harmless
      * by construction rather than something shrinking has to special-case.
      *
+     * <p><b>Default size bound:</b> Built on {@link #lists(Generator)}, so it
+     * inherits that method's default length range of {@code [0, 100]} elements
+     * before deduplication (the resulting set may be smaller). Use
+     * {@link #lists(Generator, int, int)} directly if you need an explicit bound
+     * on the underlying list.
+     *
      * <p><b>Note on large collections:</b> Generating very large sets (roughly above the point
      * where the per-element byte cost times the max size approaches ~8KB) may exceed the internal
      * {@link io.github.nikhilvirdi.jhusk.internal.DataSource#MAX_BUFFER_SIZE} cap and cause a
@@ -715,6 +721,12 @@ public final class Generators {
      * not a direct function of the entry list's size once duplicate keys collapse. This is
      * harmless for the same reason: the shrinker only ever observes the fully-decoded
      * {@code Map<K, V>} through the property assertion, never the intermediate entry list.
+     *
+     * <p><b>Default size bound:</b> Built on {@link #lists(Generator)} of
+     * key-value entries, so it inherits that method's default length range of
+     * {@code [0, 100]} entries before duplicate-key collapsing (the resulting
+     * map may be smaller). Use {@link #lists(Generator, int, int)}-style bounds
+     * via a custom entry generator if you need explicit control.
      *
      * <p><b>Note on large collections:</b> Generating very large maps (roughly above the point
      * where the per-entry byte cost times the max size approaches ~8KB) may exceed the internal
