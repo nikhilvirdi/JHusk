@@ -409,10 +409,13 @@ Issues that turned out to be in the test suite itself, not JHusk: an apparent in
 
 A known, intentional design limit rather than a defect: the 8KB default buffer cap described in Design & Architecture above. Several of the stress tests generated very large collections specifically to exercise this limit, and asserted that JHusk correctly reported a budget-exceeded exception in that scenario, rather than silently succeeding, hanging, or producing an incorrect result.
 
+Beyond that initial review, an independent, external adversarial test suite exists as its own repository, [jhusk-adversarial-tests](https://github.com/nikhilvirdi/jhusk-adversarial-tests). It consumes JHusk's published Maven Central artifact the same way any real project would, rather than testing against JHusk's own source tree, and covers 50 scenarios across boundary values, planted bugs, documented claim verification, and every feature introduced in 1.1.0. It found a real defect in `Generator.flatMap()`, a `filter()` that exhausted its retry budget on JHusk's built-in edge-case corpus could crash the whole property instead of being treated as an ordinary invalid run, fixed in 1.1.1. See that repository for the full methodology, every scenario, and the complete writeup of what was found.
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history, including every fix and addition in each version.
 
+- [1.1.1](CHANGELOG.md#111---2026-08-10), a fix for a `Generator.flatMap()` crash found by independent adversarial testing
 - [1.1.0](CHANGELOG.md#110---2026-08-10), stateful testing, `assuming()`, better shrinking on large collections, and more
 - [1.0.1](CHANGELOG.md#101---2026-08-09), bug fixes from an independent adversarial review
 - [1.0.0](CHANGELOG.md#100---2026-08-08), first release
