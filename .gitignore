@@ -18,10 +18,8 @@ Thumbs.db
 .jhusk/
 
 # Test utilities
-adversarial-tests/
 
 # Archived planning docs
-deprecated/
 
 # AI coding assistant context (local use only)
 CLAUDE.md
