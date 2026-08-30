@@ -229,7 +229,7 @@ class GeneratorsTest {
         }
 
         /**
-         * For doubles: since IEEE 754 encoding is the acknowledged weak point (D1),
+         * For doubles: since IEEE 754 encoding is the acknowledged weak point,
          * we only verify the shrink target (0.0 from all-zero bytes) and that the
          * encoding is deterministic — full monotonicity is not expected for doubles.
          */
@@ -269,7 +269,7 @@ class GeneratorsTest {
             }
 
             assertEquals(Integer.MIN_VALUE, gen.generate(new DataSource(new byte[4])),
-                    "All-zero bytes must produce MIN_VALUE (D4 shrink target)");
+                    "All-zero bytes must produce MIN_VALUE (shrink target)");
             assertEquals(Integer.MAX_VALUE,
                     gen.generate(new DataSource(new byte[]{(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF})),
                     "All-0xFF bytes must produce MAX_VALUE");
@@ -387,7 +387,7 @@ class GeneratorsTest {
     // ========================= Shrink Target Tests =========================
 
     @Nested
-    @DisplayName("Shrink targets: all-zero bytes → simplest value (D4)")
+    @DisplayName("Shrink targets: all-zero bytes → simplest value")
     class ShrinkTargets {
 
         @Test
@@ -528,7 +528,7 @@ class GeneratorsTest {
         }
     }
 
-    // ========================= Phase 8: Combinator Tests =========================
+    // ========================= Combinator Tests =========================
 
     @Nested
     @DisplayName("Combinators: map, filter, flatMap, combine, oneOf, just")
@@ -579,7 +579,7 @@ class GeneratorsTest {
         @Test
         @DisplayName("filter().flatMap() no longer crashes with GeneratorCrashException when filter exhausts on the edge-case buffer")
         void filterFlatMapDoesNotCrashWhenFilterExhaustsOnEdgeCaseBuffer() {
-            // integers(0, 10) decodes to 0 (its D4 shrink target) on the all-zero edge-case buffer
+            // integers(0, 10) decodes to 0 (its shrink target) on the all-zero edge-case buffer
             // that every check() call runs automatically; rejecting exactly 0 means the filter
             // deterministically exhausts its retry budget on that buffer (the whole buffer is
             // zero-filled, so every retry attempt also decodes to 0) and marks the run INVALID
@@ -680,10 +680,10 @@ class GeneratorsTest {
         }
     }
 
-    // ========================= Phase 9: Collection Generator Tests =========================
+    // ========================= Collection Generator Tests =========================
 
     @Nested
-    @DisplayName("Collections: lists, strings, optionals, sets, maps (D5)")
+    @DisplayName("Collections: lists, strings, optionals, sets, maps")
     class Collections {
 
         @Test
@@ -693,17 +693,17 @@ class GeneratorsTest {
 
             List<Integer> result = gen.generate(new DataSource(new byte[64]));
 
-            assertTrue(result.isEmpty(), "All-zero buffer must decode to the empty list (D4 shrink target)");
+            assertTrue(result.isEmpty(), "All-zero buffer must decode to the empty list (shrink target)");
         }
 
         /**
-         * The single most important test in this phase: hand-crafts a buffer encoding a 3-element
-         * list via D5's continuation-flag scheme, uses the RECORDED SPAN METADATA (not a hand-
+         * The single most important test here: hand-crafts a buffer encoding a 3-element
+         * list via the continuation-flag scheme, uses the RECORDED SPAN METADATA (not a hand-
          * computed offset) to find the byte range of the second element, splices exactly that span
-         * (flag byte + payload) out of the buffer, and replays the result. If D5 + spans (R1) do
-         * their job, the spliced buffer decodes to a valid 2-element list with the untouched
-         * elements' values intact — proving span deletion never desynchronizes the remainder of
-         * the buffer, unlike length-prefix encoding would.
+         * (flag byte + payload) out of the buffer, and replays the result. If the continuation-flag
+         * encoding and spans do their job, the spliced buffer decodes to a valid 2-element list with
+         * the untouched elements' values intact — proving span deletion never desynchronizes the
+         * remainder of the buffer, unlike length-prefix encoding would.
          */
         @Test
         @DisplayName("deleting one element's span (flag + bytes) yields a valid list with exactly one fewer element, uncorrupted")
@@ -729,7 +729,7 @@ class GeneratorsTest {
             Span secondElementSpan = listSpan.getChildren().get(1); // the element with value 2
 
             // Splice out exactly the second element's span (flag byte + its 4 payload bytes) —
-            // precisely the deletion the future shrinker (Phase 11-12) will perform.
+            // precisely the deletion the shrinker will perform.
             int deletedLen = secondElementSpan.size();
             byte[] spliced = new byte[original.length - deletedLen];
             System.arraycopy(original, 0, spliced, 0, secondElementSpan.getStart());
@@ -768,7 +768,7 @@ class GeneratorsTest {
 
             Integer result = gen.generate(new DataSource(new byte[8]));
 
-            assertNull(result, "All-zero buffer must decode to null (D4 shrink target: absence is simpler)");
+            assertNull(result, "All-zero buffer must decode to null (shrink target: absence is simpler)");
         }
 
         @Test
@@ -798,12 +798,12 @@ class GeneratorsTest {
         }
 
         /**
-         * D4 says shrink targets are "empty for collections" -- sets()/maps() were never directly
+         * Shrink targets are "empty for collections" -- sets()/maps() were never directly
          * checked for this, only inferred from lists()'s own empty-list test plus reasoning about
          * how LinkedHashSet/LinkedHashMap behave on an empty input.
          */
         @Test
-        @DisplayName("sets()/maps(): all-zero buffer produces an empty collection (D4, inherited from lists())")
+        @DisplayName("sets()/maps(): all-zero buffer produces an empty collection (inherited from lists())")
         void setsAndMapsShrinkTargetIsEmpty() {
             Set<Integer> emptySet = Generators.sets(Generators.integers(0, 100))
                     .generate(new DataSource(new byte[64]));
@@ -818,7 +818,7 @@ class GeneratorsTest {
     // ========================= Deep Nesting Stress Test (Part 2 audit) =========================
 
     /**
-     * R1 (span recording) is the project's own "highest risk" register entry, and every existing
+     * Span recording is one of the highest-risk mechanisms in the project, and every existing
      * span test uses shallow, hand-sized structures. This stresses the SAME mechanism at real
      * composite depth: a list of lists of optionals of a custom combined type, four generator
      * layers deep. If span nesting/boundaries ever desynchronized at depth, this is where it would
@@ -883,7 +883,7 @@ class GeneratorsTest {
         }
 
         /**
-         * Recursively verifies the R1 nesting discipline at every level: each child starts no
+         * Recursively verifies the span nesting discipline at every level: each child starts no
          * earlier than the previous sibling ended (non-overlapping, in order) and ends no later
          * than its parent (fully contained) -- the exact property span deletion depends on to
          * safely remove one element without corrupting anything else in the buffer.
@@ -931,12 +931,12 @@ class GeneratorsTest {
     }
 
     /**
-     * Buffer-pair monotonicity check for composed generators (same approach as the Phase 7
+     * Buffer-pair monotonicity check for composed generators (same approach as the
      * primitive tests above): builds pairs of buffers that share a common prefix and differ at
      * exactly one byte position within {@code [0, diffPositionBound)}, where the "smaller" buffer
      * has a strictly lower byte at that position — satisfying the lexicographic-order definition.
-     * Per the D4 invariant, replaying the smaller buffer must never produce a larger value than
-     * replaying the larger one.
+     * Per the shrink-monotonicity invariant, replaying the smaller buffer must never produce a
+     * larger value than replaying the larger one.
      */
     private static void assertShrinkMonotonic(Generator<Integer> gen, int bufferLen, int diffPositionBound, int trials) {
         SplittableRandom rng = new SplittableRandom(4242);

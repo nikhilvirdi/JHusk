@@ -277,7 +277,7 @@ public class DataSource {
      * Draws a 1-byte boolean value.
      * <p>
      * <b>Encoding:</b><br>
-     * Byte {@code 0x00} decodes to {@code false} (the D4 shrink target); any nonzero byte decodes
+     * Byte {@code 0x00} decodes to {@code false} (the shrink target); any nonzero byte decodes
      * to {@code true}. This is monotonic by construction, matching {@code Generators.booleans()}'s
      * encoding exactly (in fact {@code Generators.booleans()} delegates here). An earlier version
      * of this method used a parity/LSB check ({@code byte & 1}), which is <em>not</em> monotonic —

@@ -194,7 +194,7 @@ class DataSourceTest {
         assertEquals(DataSource.Status.VALID, repDs.getStatus());
     }
 
-    // ==================== Phase 6: Span Recording Tests ====================
+    // ==================== Span Recording Tests ====================
 
     /**
      * Verifies that opening nested spans produces a hierarchy where child spans are registered

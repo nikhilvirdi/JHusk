@@ -13,7 +13,7 @@ import java.util.function.Consumer;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Phase 16: "Use JHusk to test JHusk." These properties use JHusk's own {@code @Property}/
+ * "Use JHusk to test JHusk." These properties use JHusk's own {@code @Property}/
  * {@code @ForAll} JUnit integration to generate inputs that exercise JHusk's own generators and
  * shrinker, checking structural invariants the rest of the hand-written test suite doesn't state
  * as explicitly: encoding correctness across arbitrary (not just hand-picked) ranges, replay
@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * documented generic-type-erasure limitation while still letting JHusk's own random search pick
  * the ranges, sizes, and seeds under test on every run.
  */
-@DisplayName("Phase 16: dogfooding — JHusk tests JHusk via its own @Property/@ForAll API")
+@DisplayName("Dogfooding — JHusk tests JHusk via its own @Property/@ForAll API")
 class DogfoodingTest {
 
     @Property(examples = 200)

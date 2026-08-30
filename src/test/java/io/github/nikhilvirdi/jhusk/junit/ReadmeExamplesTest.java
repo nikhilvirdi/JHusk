@@ -17,10 +17,10 @@ import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
 import static org.junit.platform.testkit.engine.EngineTestKit.engine;
 
 /**
- * Compiles and runs the exact code samples shown in README.md (Phase 16: "re-verify README usage
- * examples ... check every code sample compiles and behaves as shown"). This is not a permanent
- * fixture of the public API surface; it exists purely so the README can never silently drift from
- * the real API again without a test failure catching it.
+ * Compiles and runs the exact code samples shown in README.md, checking that every code sample
+ * compiles and behaves as shown. This is not a permanent fixture of the public API surface; it
+ * exists purely so the README can never silently drift from the real API again without a test
+ * failure catching it.
  */
 @DisplayName("README usage examples compile and behave as documented")
 class ReadmeExamplesTest {
@@ -62,21 +62,17 @@ class ReadmeExamplesTest {
     void capturesRealShrinkReportForReadme(@TempDir Path tempDir) {
         // withStorageDir(tempDir) keeps this deliberately-always-failing property from persisting
         // its shrunk buffer to the real .jhusk/ -- the same class of self-pollution bug fixed in
-        // PropertyExtensionTest during Phase 15 (a stored failure changes which report branch a
-        // later run takes). This test doesn't exercise persistence at all, so isolating it away
-        // from the default directory is strictly simpler than adding cleanup hooks.
+        // PropertyExtensionTest (a stored failure changes which report branch a later run takes).
+        // This test doesn't exercise persistence at all, so isolating it away from the default
+        // directory is strictly simpler than adding cleanup hooks.
         Generator<List<Integer>> gen = Generators.lists(Generators.integers(0, 100_000), 0, 50);
 
-        AssertionError error = assertThrows(AssertionError.class, () ->
+        assertThrows(AssertionError.class, () ->
                 io.github.nikhilvirdi.jhusk.Property.forAll(gen, list -> {
                     for (int value : list) {
                         assertTrue(value <= 10, "no element may exceed 10");
                     }
                 }).withStorageDir(tempDir).check(7L)
         );
-
-        System.out.println("--- REAL REPORT, FOR TRANSCRIPTION INTO README.md ---");
-        System.out.println(error.getMessage());
-        System.out.println("-------------------------------------------------------");
     }
 }

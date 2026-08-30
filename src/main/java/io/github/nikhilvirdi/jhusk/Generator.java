@@ -7,10 +7,10 @@ import java.util.function.Predicate;
 
 /*
  * ═══════════════════════════════════════════════════════════════════════════════
- * DESIGN DECISIONS: D3 (Bounded-Integer Encoding) & D4 (Shrink Targets)
+ * DESIGN DECISIONS: Bounded-Integer Encoding & Shrink Targets
  * ═══════════════════════════════════════════════════════════════════════════════
  *
- * D3 — Bounded-Integer Encoding (Multiplicative Scaling)
+ * Bounded-Integer Encoding (Multiplicative Scaling)
  * ──────────────────────────────────────────────────────
  * The core challenge: how to map raw random bytes to a bounded integer range
  * [min, max] such that lexicographically smaller bytes always produce values
@@ -44,7 +44,7 @@ import java.util.function.Predicate;
  *   floor(2^32/range) or ceil(2^32/range) raw inputs — maximum bucket-size
  *   difference is 1, which is the theoretical minimum.
  *
- * D4 — Shrink Targets
+ * Shrink Targets
  * ───────────────────
  * Every encoding is designed so that an all-zero byte buffer produces the
  * simplest possible value for that type. The shrinker relies on this:
@@ -68,7 +68,7 @@ import java.util.function.Predicate;
  * if buffer A is lexicographically less than or equal to buffer B (both of the same length),
  * then generating from A must produce a value that is "no larger" than the value generated
  * from B, according to that type's natural shrink ordering (toward the shrink target defined
- * in D4 above).
+ * above).
  *
  * <p>This invariant is what makes JHusk's byte-level shrinker work: reducing bytes in the
  * buffer is guaranteed to produce simpler values, so the shrinker can minimize failing test

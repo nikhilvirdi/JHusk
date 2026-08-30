@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * of "this call did not return normally," deliberately using two different exception types:
  * <ul>
  *   <li><b>{@link AssertionError}</b> — a falsifying example was genuinely found: the code under
- *       test violated the property, whether freshly discovered (with the Phase 13 shrunk report as
+ *       test violated the property, whether freshly discovered (with the shrunk report as
  *       the message) or replayed from a previously stored failure. This mirrors a plain failed
  *       assertion on purpose — the entire point of a property check is to behave like an assertion
  *       that ran against many inputs instead of one, and {@code AssertionError} is exactly what a
@@ -298,7 +298,7 @@ public final class Property<T> {
      * Checks the property using a randomly chosen master seed.
      *
      * <p>Before generating random examples, also runs two deterministic edge cases (all-zero and
-     * all-0xFF byte buffers) covering every generator's D4 shrink-target boundaries.
+     * all-0xFF byte buffers) covering every generator's shrink-target boundaries.
      *
      * <p>Equivalent to {@code check(new SplittableRandom().nextLong())}: replays any stored
      * failure first (see {@link #check(long)}), then generates fresh random examples if none is
@@ -315,7 +315,7 @@ public final class Property<T> {
      * Checks the property using the specified master seed.
      * 
      * <p>Before generating random examples, also runs two deterministic edge cases (all-zero and
-     * all-0xFF byte buffers) covering every generator's D4 shrink-target boundaries.
+     * all-0xFF byte buffers) covering every generator's shrink-target boundaries.
      * 
      * <p>Replays stored failures from {@code .jhusk/} first before generating random examples.
      * If a stored failure still fails, it reports immediately without generating new examples.

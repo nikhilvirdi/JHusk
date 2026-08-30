@@ -157,7 +157,7 @@ class PropertyTest {
     }
 
     @Nested
-    @DisplayName("Phase 13 Failure Reporting & Reproduction Tests")
+    @DisplayName("Failure Reporting & Reproduction Tests")
     class FailureReporting {
 
         @Test
@@ -172,9 +172,6 @@ class PropertyTest {
             });
 
             String message = error.getMessage();
-            System.out.println("--- PHASE 13 UPGRADED FAILURE REPORT ---");
-            System.out.println(message);
-            System.out.println("----------------------------------------");
 
             assertTrue(message.contains("Property Falsified!"), "Report header present");
             assertTrue(message.contains("Falsifying (shrunk) value:"), "Shrunk value header present");

@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("Phase 14 Failure Persistence tests")
+@DisplayName("Failure Persistence tests")
 class FailurePersistenceTest {
 
     private Path tempDir;

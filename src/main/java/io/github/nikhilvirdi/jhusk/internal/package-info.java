@@ -4,17 +4,15 @@
  * and the shrinker ({@link io.github.nikhilvirdi.jhusk.internal.Shrinker}, {@link
  * io.github.nikhilvirdi.jhusk.internal.ShrinkHarness}).
  *
- * <p><b>Deviation from WORKPLAN.md's D7 package layout proposal:</b> D7 originally proposed
- * separate {@code .shrink} (shrink passes/ordering) and {@code .db} (persistence) packages
- * alongside {@code .internal}. In the shipped layout, shrinking ({@code Shrinker}/
- * {@code ShrinkHarness}) stayed in {@code .internal} instead of moving to a dedicated
- * {@code .shrink} package, and persistence ({@code FailureStorage}) ended up promoted to the
- * public {@link io.github.nikhilvirdi.jhusk} package rather than living in {@code .db} at all
+ * <p><b>Package layout note:</b> a natural alternative would split this package into separate
+ * {@code .shrink} (shrink passes/ordering) and {@code .db} (persistence) packages alongside
+ * {@code .internal}. Instead, shrinking ({@code Shrinker}/{@code ShrinkHarness}) stays in
+ * {@code .internal}, and persistence ({@code FailureStorage}) is promoted to the public
+ * {@link io.github.nikhilvirdi.jhusk} package rather than living in a {@code .db} package at all
  * (see that package's javadoc for why). Justification: none of these are part of the public
  * compatibility surface except {@code FailureStorage}, and splitting {@code .internal} further
  * by concern (rather than by public/private boundary) wasn't buying enough clarity to justify
- * three internal packages instead of one for a codebase this size. Recorded here, in the shipped
- * package-info, rather than only in a phase-completion chat transcript, which is not durable.
+ * three internal packages instead of one for a codebase this size.
  *
  * <p><b>Not a compatibility promise.</b> Nothing in this package is part of JHusk's public API,
  * regardless of the {@code public} modifier on individual classes and methods here — signatures

@@ -20,7 +20,7 @@ import java.util.function.BiFunction;
  *
  * <p>All encodings satisfy the shrink-monotonicity invariant: lexicographically smaller
  * bytes produce simpler values (closer to the type's shrink target). See the design
- * decision comment block in {@link Generator} for full D3/D4 rationale.
+ * decision comment block in {@link Generator} for the full rationale.
  */
 public final class Generators {
 
@@ -66,7 +66,7 @@ public final class Generators {
         return source -> {
             source.startSpan("int");
             try {
-                // 4 bytes big-endian; all-zero bytes → 0 (shrink target D4)
+                // 4 bytes big-endian; all-zero bytes → 0 (shrink target)
                 return source.drawInt();
             } finally {
                 source.endSpan();
@@ -77,7 +77,7 @@ public final class Generators {
     /**
      * Returns a generator of bounded {@code int} values in the range {@code [min, max]}.
      *
-     * <p><b>Encoding (D3 — Multiplicative Scaling):</b>
+     * <p><b>Encoding (Multiplicative Scaling):</b>
      * <ol>
      *   <li>Draw 4 raw bytes and interpret as an unsigned 32-bit big-endian integer.</li>
      *   <li>Compute {@code offset = (int)(((long) rawUnsigned * (long) range) >>> 32)}
@@ -87,7 +87,7 @@ public final class Generators {
      *
      * <p><b>Monotonicity:</b> The function {@code floor(raw × range / 2^32)} is a linear
      * scaling followed by floor — a non-decreasing staircase with zero wraparound points.
-     * All-zero bytes → offset 0 → {@code min} (shrink target D4 for bounded ranges).
+     * All-zero bytes → offset 0 → {@code min} (shrink target for bounded ranges).
      *
      * <p><b>Span:</b> labeled {@code "int"}, 4 bytes wide.
      *
@@ -119,7 +119,7 @@ public final class Generators {
                     return min + (int) rawUnsigned;
                 }
 
-                // Multiplicative scaling (D3):
+                // Multiplicative scaling:
                 // offset = floor(rawUnsigned × range / 2^32)
                 //
                 // The multiplication is safe in long: rawUnsigned max is 2^32-1 (~4.29e9),
@@ -161,7 +161,7 @@ public final class Generators {
         return source -> {
             source.startSpan("long");
             try {
-                // 8 bytes big-endian; all-zero bytes → 0L (shrink target D4)
+                // 8 bytes big-endian; all-zero bytes → 0L (shrink target)
                 return source.drawLong();
             } finally {
                 source.endSpan();
@@ -181,7 +181,7 @@ public final class Generators {
      * <p><b>Encoding:</b> Uses the same multiplicative scaling as bounded integers with
      * {@code min=' '} (0x20) and {@code max='~'} (0x7E), but draws only 2 bytes since
      * the range (95) fits easily in 16 bits, saving buffer space for string generation.
-     * All-zero bytes → {@code ' '} (space, shrink target D4 for characters).
+     * All-zero bytes → {@code ' '} (space, shrink target for characters).
      *
      * <p><b>Span:</b> labeled {@code "char"}, 2 bytes wide.
      *
@@ -202,7 +202,7 @@ public final class Generators {
                 int rawUnsigned = ((bytes[0] & 0xFF) << 8) | (bytes[1] & 0xFF);
                 long rawUnsignedLong = rawUnsigned & 0xFFFFL;
 
-                // Multiplicative scaling over 16-bit space (analogous to D3 over 32-bit):
+                // Multiplicative scaling over 16-bit space (analogous to the 32-bit version above):
                 // offset = floor(rawUnsigned × range / 2^16)
                 int offset = (int) ((rawUnsignedLong * range) >>> 16);
 
@@ -217,9 +217,9 @@ public final class Generators {
      * Returns a generator of {@code double} values.
      *
      * <p><b>Encoding:</b> Draws 8 bytes, interprets them as an IEEE 754 double via
-     * {@link Double#longBitsToDouble(long)}. All-zero bytes → {@code 0.0} (shrink target D4).
+     * {@link Double#longBitsToDouble(long)}. All-zero bytes → {@code 0.0} (shrink target).
      *
-     * <p><b>⚠ FLOATING-POINT WEAKNESS (D1 Acknowledged):</b>
+     * <p><b>⚠ FLOATING-POINT WEAKNESS:</b>
      * Doubles are the acknowledged weak point of a raw-byte intermediate representation.
      * IEEE 754 bit patterns do NOT shrink smoothly toward simple decimal values the way
      * integers do. Reducing bytes in the buffer produces arbitrary floating-point values
@@ -245,7 +245,7 @@ public final class Generators {
             source.startSpan("double");
             try {
                 // 8 bytes big-endian → long bits → IEEE 754 double
-                // All-zero bytes → 0L → Double.longBitsToDouble(0L) = 0.0 (shrink target D4)
+                // All-zero bytes → 0L → Double.longBitsToDouble(0L) = 0.0 (shrink target)
                 long bits = source.drawLong();
                 return Double.longBitsToDouble(bits);
             } finally {
@@ -316,9 +316,9 @@ public final class Generators {
      *
      * <p><b>Encoding:</b> Draws 4 bytes and scales them to an index in
      * {@code [0, alternatives.length)} using the same multiplicative scaling as bounded integers
-     * (D3) — never modulo, which wraps at every multiple of the alternative count and breaks
+     * — never modulo, which wraps at every multiple of the alternative count and breaks
      * shrink monotonicity. All-zero bytes scale to index 0, making the first alternative the
-     * shrink target (D4).
+     * shrink target.
      *
      * <p><b>Span:</b> labeled {@code "oneOf"}, wrapping the selector draw and the chosen
      * alternative's own draw (and its nested spans) as children.
@@ -338,8 +338,8 @@ public final class Generators {
         return source -> {
             source.startSpan("oneOf");
             try {
-                // Same multiplicative scaling as integers(min, max) (D3):
-                // offset = floor(rawUnsigned × range / 2^32). All-zero bytes → index 0 (D4).
+                // Same multiplicative scaling as integers(min, max):
+                // offset = floor(rawUnsigned × range / 2^32). All-zero bytes → index 0.
                 int rawSigned = source.drawInt();
                 long rawUnsigned = Integer.toUnsignedLong(rawSigned);
                 int index = (int) ((rawUnsigned * range) >>> 32);
@@ -354,8 +354,8 @@ public final class Generators {
      * Returns a generator that selects among {@code values} directly.
      *
      * <p><b>"Exhaustive" — what this guarantees and what it doesn't:</b> This
-     * generator uses the same D3 multiplicative-scaling selector as
-     * {@link #oneOf}, so {@code values[0]} is the D4 shrink target (selected
+     * generator uses the same multiplicative-scaling selector as
+     * {@link #oneOf}, so {@code values[0]} is the shrink target (selected
      * by an all-zero byte buffer) and {@code values[values.length - 1]} is
      * selected by an all-0xFF byte buffer. Because {@code Property.check()}
      * deterministically runs both of those exact byte buffers as edge cases
@@ -446,12 +446,12 @@ public final class Generators {
 
     /*
      * ═══════════════════════════════════════════════════════════════════════════════
-     * DESIGN DECISION: D5 (Collection Encoding)
+     * DESIGN DECISION: Collection Encoding
      * ═══════════════════════════════════════════════════════════════════════════════
      *
      * The core challenge: how to encode a variable-length collection into the byte
      * stream such that deleting bytes belonging to one element leaves the rest of the
-     * buffer correctly interpretable (R1 — spans exist precisely to make this possible).
+     * buffer correctly interpretable (spans exist precisely to make this possible).
      *
      * REJECTED: Length-prefix encoding (draw a count N up front, then N elements).
      *   Shrinks terribly. If the shrinker later deletes the bytes belonging to one
@@ -468,14 +468,15 @@ public final class Generators {
      *   to exactly one contiguous, self-describing span: [flag byte][element bytes].
      *   Deleting that whole span removes the choice-to-continue and the payload
      *   together, so the next span's flag byte simply becomes the next thing read —
-     *   no desync, no dangling length to reconcile. This is D5 and R1 (spans) working
-     *   as a single mechanism: the span *is* the deletable unit the shrinker needs.
+     *   no desync, no dangling length to reconcile. This is the continuation-flag
+     *   encoding and spans working as a single mechanism: the span *is* the deletable
+     *   unit the shrinker needs.
      *
-     * Shrink target (D4): the flag reuses the same nonzero=true/zero=false convention
+     * Shrink target: the flag reuses the same nonzero=true/zero=false convention
      * as booleans() below, so all-zero bytes → every flag reads false immediately →
      * the empty (or minimum-size) list falls out for free, with no special-casing.
      *
-     * INTERACTION WITH D6 (DataSource.MAX_BUFFER_SIZE, 8192 bytes):
+     * INTERACTION WITH DataSource.MAX_BUFFER_SIZE (8192 bytes):
      *   Two consequences of this encoding compound against the buffer cap for large or
      *   deeply-nested bounds:
      *   (1) The mandatory minSize prefix draws no flag at all -- it cannot stop early --
@@ -489,10 +490,11 @@ public final class Generators {
      *       each map a list of entries, each entry's value a string that's itself a list of
      *       chars): every level tends toward its own max independently, multiplying the
      *       total byte cost. See {@link DataSourceOverrunException}.
-     *   Neither is a bug in isolation -- D5 needs spans to be independently deletable, D6
-     *   needs a hard cap to bound worst-case memory -- but together they mean minSize ×
-     *   (min per-element byte width) must stay well under MAX_BUFFER_SIZE, and maxSize
-     *   should be sized assuming elements usually reach it, not average out low.
+     *   Neither is a bug in isolation -- span-based deletion needs spans to be independently
+     *   deletable, and the buffer cap needs a hard limit to bound worst-case memory -- but
+     *   together they mean minSize × (min per-element byte width) must stay well under
+     *   MAX_BUFFER_SIZE, and maxSize should be sized assuming elements usually reach it,
+     *   not average out low.
      * ═══════════════════════════════════════════════════════════════════════════════
      */
 
@@ -522,7 +524,7 @@ public final class Generators {
     /**
      * Returns a generator of {@code List<T>} with length in {@code [minSize, maxSize]}.
      *
-     * <p><b>Encoding (D5 — Continuation-Flag):</b> see the design decision block above. The
+     * <p><b>Encoding (Continuation-Flag):</b> see the design decision block above. The
      * first {@code minSize} elements are mandatory — no flag is drawn for them, since a fixed
      * count has no choice to encode. Every element beyond that is gated by a continuation flag
      * drawn inside its own span.
@@ -530,14 +532,14 @@ public final class Generators {
      * <p><b>Span:</b> outer span labeled {@code "list"}. Each element (mandatory or optional)
      * gets its own {@code "list-element"} child span, which in turn nests that element
      * generator's own span — e.g. an {@code integers()} element produces
-     * {@code list -> list-element -> int}. This is R1/Phase 6's payoff: one element's span
-     * (flag + payload) is exactly the unit the shrinker needs to delete to remove that element
-     * without corrupting anything after it. When the list stops before reaching {@code maxSize},
-     * the final continuation-flag probe still opens its own (childless) {@code "list-element"}
-     * span for just that one stop byte — harmless, since a childless span has nothing worth
-     * deleting.
+     * {@code list -> list-element -> int}. This is the payoff of span recording: one element's
+     * span (flag + payload) is exactly the unit the shrinker needs to delete to remove that
+     * element without corrupting anything after it. When the list stops before reaching
+     * {@code maxSize}, the final continuation-flag probe still opens its own (childless)
+     * {@code "list-element"} span for just that one stop byte — harmless, since a childless
+     * span has nothing worth deleting.
      *
-     * <p><b>Buffer budget (see D5/D6 note above):</b> {@code minSize} elements are unconditional —
+     * <p><b>Buffer budget (see note above):</b> {@code minSize} elements are unconditional —
      * they cannot stop early — so {@code minSize} times the element's minimum byte width must stay
      * well under {@link io.github.nikhilvirdi.jhusk.internal.DataSource#MAX_BUFFER_SIZE} (8192
      * bytes) or every generation attempt overruns the buffer and counts as invalid, deterministically
@@ -580,12 +582,12 @@ public final class Generators {
                     }
                 }
 
-                // Optional elements (D5): the flag lives inside the same span as the element
+                // Optional elements: the flag lives inside the same span as the element
                 // it gates, so flag+payload delete together as one unit.
                 while (result.size() < maxSize) {
                     source.startSpan("list-element");
                     try {
-                        // Same nonzero=true/zero=false convention as booleans() (D4).
+                        // Same nonzero=true/zero=false convention as booleans().
                         boolean cont = source.drawBytes(1)[0] != 0;
                         if (!cont) {
                             break;
@@ -605,8 +607,8 @@ public final class Generators {
 
     /**
      * Returns a generator of {@code String} built compositionally on {@link #characters()} via
-     * {@link #lists(Generator)} — a string is just a list of characters, so it inherits D5's
-     * continuation-flag encoding and shrink behavior with no separate hand-rolled encoding.
+     * {@link #lists(Generator)} — a string is just a list of characters, so it inherits that
+     * method's continuation-flag encoding and shrink behavior with no separate hand-rolled encoding.
      *
      * <p>Length follows {@link #lists(Generator)}'s default bound: {@code [0, 100]} characters,
      * each drawn from {@link #characters()}'s printable ASCII range {@code [' ', '~']}.
@@ -628,7 +630,7 @@ public final class Generators {
      * {@code null} (absence) and a value from {@code gen} (presence).
      *
      * <p><b>Encoding:</b> Draws 1 byte using the same nonzero=true/zero=false convention as
-     * {@link #booleans()}. All-zero bytes → absent (D4: absence is simpler than presence, so
+     * {@link #booleans()}. All-zero bytes → absent (absence is simpler than presence, so
      * {@code null} is the shrink target).
      *
      * <p><b>Null probability (documented, stable guarantee):</b> Exactly 1 of the 256 possible
@@ -674,7 +676,7 @@ public final class Generators {
      * space: unsigned byte values {@code < threshold} map to absent ({@code null}); values
      * {@code >= threshold} map to present (delegates to {@code gen}). All-zero bytes always
      * map to the outcome with the lowest threshold — absent when {@code nullProbability > 0.0},
-     * present when {@code nullProbability == 0.0} — preserving the D4 shrink-toward-all-zero
+     * present when {@code nullProbability == 0.0} — preserving the shrink-toward-all-zero
      * invariant.
      *
      * <p><b>Edge cases:</b>

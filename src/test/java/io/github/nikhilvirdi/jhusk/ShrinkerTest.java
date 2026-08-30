@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** End-to-end coverage of the Phase 12 byte-buffer shrinking pipeline. */
+/** End-to-end coverage of the byte-buffer shrinking pipeline. */
 class ShrinkerTest {
 
     @Test

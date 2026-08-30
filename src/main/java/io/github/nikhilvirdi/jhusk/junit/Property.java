@@ -15,7 +15,7 @@ import java.lang.annotation.Target;
  * {@link PropertyExtension}. It appears as a single JUnit test — one "Property Check"
  * invocation, not one per example — which internally runs JHusk's own generate/check/shrink
  * loop, invoking the annotated method up to {@link #examples()} times with generated arguments.
- * A failure at any point is reported as that one JUnit test failing, with the Phase 13 shrunk
+ * A failure at any point is reported as that one JUnit test failing, with the shrunk
  * report (falsifying value, reproduction seed, execution statistics) as the failure message.
  */
 @Target({ElementType.METHOD})

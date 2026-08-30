@@ -13,7 +13,7 @@ import java.util.function.Consumer;
  * Evaluates candidate byte buffers during the shrinking process.
  * 
  * <p>This harness is pure evaluation scaffolding. It does not search for shrinks
- * or track the "best" buffer (that is Phase 12's job). It takes a candidate,
+ * or track the "best" buffer (that is the shrinker's job). It takes a candidate,
  * replays it through the generator and assertion, and definitively answers:
  * "does this candidate reproduce the original failure?"
  * 

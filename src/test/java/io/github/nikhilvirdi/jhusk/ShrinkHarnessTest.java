@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("Shrink Scaffolding tests (Phase 11)")
+@DisplayName("Shrink Scaffolding tests")
 class ShrinkHarnessTest {
 
     @Nested

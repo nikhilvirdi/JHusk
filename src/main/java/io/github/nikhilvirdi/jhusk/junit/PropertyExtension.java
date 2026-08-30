@@ -23,7 +23,7 @@ import java.util.stream.Stream;
  * <p>This extension provides a single test template context that internally runs the
  * entire property check loop (generation, invalid budgeting, shrinking, persistence).
  * This ensures that failures are reported cleanly as a single JUnit test failure,
- * complete with Phase 13's shrunk report and Phase 14's persistence identity.
+ * complete with a shrunk report and a persistence identity.
  */
 public class PropertyExtension implements TestTemplateInvocationContextProvider {
 
@@ -81,7 +81,7 @@ public class PropertyExtension implements TestTemplateInvocationContextProvider 
             }
 
             // 2. Create the args generator using ArgsHolder for human-readable toString().
-            // Property's Phase 13 failure report calls String.valueOf(value), and raw Object[]
+            // Property's failure report calls String.valueOf(value), and raw Object[]
             // produces "[Ljava.lang.Object;@hash". ArgsHolder.toString() delegates to
             // Arrays.deepToString(), giving e.g. "[1000000]".
             Generator<ArgsHolder> holderGen = source -> {
@@ -246,7 +246,7 @@ public class PropertyExtension implements TestTemplateInvocationContextProvider 
      * Thin wrapper around {@code Object[]} that provides a human-readable
      * {@link #toString()} via {@link Arrays#deepToString(Object[])}.
      *
-     * <p>Property's Phase 13 failure report calls {@code String.valueOf(value)} on the
+     * <p>Property's failure report calls {@code String.valueOf(value)} on the
      * generated value. Raw {@code Object[]} produces the useless default
      * {@code "[Ljava.lang.Object;@hash"}. This wrapper ensures the report displays
      * the actual argument values, e.g. {@code "[1000000]"}.

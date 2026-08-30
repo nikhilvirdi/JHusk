@@ -290,7 +290,7 @@ public final class Shrinker<T> {
         for (Span child : span.getChildren()) collect(child, spans);
     }
 
-    /** Phase 9-style byte splice for span deletion and collection reordering. */
+    /** Byte splice for span deletion and collection reordering. */
     private static byte[] splice(byte[] source, int from, int to, byte[] replacement) {
         byte[] result = new byte[source.length - (to - from) + replacement.length];
         System.arraycopy(source, 0, result, 0, from);

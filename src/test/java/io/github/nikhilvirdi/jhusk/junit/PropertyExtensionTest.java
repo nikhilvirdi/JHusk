@@ -20,11 +20,11 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClass;
 
-@DisplayName("Phase 15 JUnit 5 Extension tests")
+@DisplayName("JUnit 5 Extension tests")
 class PropertyExtensionTest {
 
     // FailingTestCases.failingProperty is deliberately always-failing so it can assert on the
-    // Phase 13 report format. PropertyExtension has no way to redirect FailureStorage away from
+    // report format. PropertyExtension has no way to redirect FailureStorage away from
     // the default ".jhusk/" directory (unlike Property.withStorageDir(), used by PropertyTest and
     // FailurePersistenceTest), so every run of that property persists its shrunk buffer to disk
     // under this property's explicit name. Without cleanup, the *second* run onward replays that
@@ -60,7 +60,7 @@ class PropertyExtensionTest {
         void typeInferredDoubleAndCharProperty(@ForAll double d, @ForAll char c) {
             // Exercises PropertyExtension's default type-based generator inference for
             // double/char, which previously fell through to "Cannot infer default generator"
-            // even though Generators.doubles()/characters() have existed since Phase 7.
+            // even though Generators.doubles()/characters() have existed for a while.
             // d has no meaningful invariant to assert (doubles() can produce NaN/Infinity via
             // raw IEEE 754 bits); reaching this line at all proves resolution succeeded.
             assertTrue(c >= ' ' && c <= '~', "characters() must stay within printable ASCII");
@@ -173,7 +173,7 @@ class PropertyExtensionTest {
     }
 
     @Test
-    @DisplayName("A failing @Property produces a JUnit failure containing the Phase 13 shrunk report")
+    @DisplayName("A failing @Property produces a JUnit failure containing the shrunk report")
     void failingPropertyProducesJUnitFailureWithReport() {
         Events events = EngineTestKit.engine("junit-jupiter")
                 .selectors(selectClass(FailingTestCases.class))
@@ -192,7 +192,7 @@ class PropertyExtensionTest {
 
         String msg = error.getMessage();
         
-        // Verify Phase 13 report components are properly wired through the extension
+        // Verify report components are properly wired through the extension
         assertTrue(msg.contains("Property Falsified!"), "Report header present");
         assertTrue(msg.contains("Falsifying (shrunk) value:"), "Shrunk value header present");
         assertTrue(msg.contains("1000000"), "Minimal shrunk value present");
