@@ -3,25 +3,25 @@
   <defs>
     <!-- Soft Drop Shadow -->
     <filter id="box-shadow" x="-10%" y="-10%" width="125%" height="125%">
-      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.25"/>
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.12"/>
     </filter>
     
     <!-- Light grey arrow marker -->
     <marker id="arrow-grey" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94a3b8"/>
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#64748b"/>
     </marker>
   </defs>
 
   <style>
-    .node-box { fill: rgba(148, 163, 184, 0.12); stroke: #cbd5e1; stroke-width: 1.2; filter: url(#box-shadow); }
-    .node-decision { fill: rgba(148, 163, 184, 0.12); stroke: #cbd5e1; stroke-width: 1.2; filter: url(#box-shadow); }
-    .node-terminal { fill: rgba(148, 163, 184, 0.12); stroke: #cbd5e1; stroke-width: 1.2; stroke-dasharray: 4 3; filter: url(#box-shadow); }
+    .node-box { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.2; filter: url(#box-shadow); }
+    .node-decision { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.2; filter: url(#box-shadow); }
+    .node-terminal { fill: #f8fafc; stroke: #475569; stroke-width: 1.2; stroke-dasharray: 4 3; filter: url(#box-shadow); }
     .op-box { fill: rgba(15, 23, 42, 0.7); stroke: #94a3b8; stroke-width: 1.1; stroke-dasharray: 2 2; filter: url(#box-shadow); }
-    .edge-line { fill: none; stroke: #94a3b8; stroke-width: 1.2; }
-    .edge-loop { fill: none; stroke: #94a3b8; stroke-width: 1.2; stroke-dasharray: 4 3; }
-    .text-title { fill: #f8fafc; font-size: 13px; font-weight: 600; text-anchor: middle; }
-    .text-sub { fill: #cbd5e1; font-size: 12px; font-weight: 400; text-anchor: middle; }
-    .text-code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; fill: #e2e8f0; }
+    .edge-line { fill: none; stroke: #64748b; stroke-width: 1.2; }
+    .edge-loop { fill: none; stroke: #64748b; stroke-width: 1.2; stroke-dasharray: 4 3; }
+    .text-title { fill: #1e293b; font-size: 13px; font-weight: 600; text-anchor: middle; }
+    .text-sub { fill: #475569; font-size: 12px; font-weight: 400; text-anchor: middle; }
+    .text-code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; fill: #334155; }
     .text-op { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; fill: #e2e8f0; font-weight: 500; text-anchor: middle; }
   </style>
 
