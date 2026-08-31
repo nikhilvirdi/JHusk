@@ -1,0 +1,69 @@
+﻿name: Bug Report
+description: Report unexpected or incorrect behavior in JHusk
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. JHusk isn't currently accepting external contributions or pull requests (see [CONTRIBUTING.md](https://github.com/nikhilvirdi/JHusk/blob/main/CONTRIBUTING.md)), but bug reports are genuinely useful and will be looked at.
+
+  - type: input
+    id: jhusk-version
+    attributes:
+      label: JHusk version
+      placeholder: "1.2.0"
+    validations:
+      required: true
+
+  - type: input
+    id: java-version
+    attributes:
+      label: Java version
+      placeholder: "17, 21, or 25"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the incorrect or unexpected behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: >
+        The smallest possible generator or @Property method that reproduces the issue.
+        If JHusk reported a reproduction seed (for example, "check(1234L)"), please include
+        it here — it lets the exact failure be reproduced deterministically.
+      render: java
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Actual output / stack trace
+      description: Paste the full failure report or exception JHusk produced, if any.
+      render: text
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and didn't find a duplicate.
+          required: true
+        - label: I checked the Troubleshooting guide (https://nikhilvirdi.github.io/JHusk/troubleshooting.html) and this isn't a documented, known behavior.
+          required: true

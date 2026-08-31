@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://nikhilvirdi.github.io/JHusk/
+    about: Check the full documentation site before filing an issue — many questions are already answered there.
