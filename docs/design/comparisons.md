@@ -14,7 +14,9 @@ Beyond Java, the same underlying idea shows up across most major language ecosys
 
 The specific difference between JHusk and jqwik is worth spelling out in more depth, since they're the two most directly comparable options on the JVM.
 
-![Integrated shrinking vs. byte-stream shrinking](comparisons-shrinking-approaches.svg)
+<p align="center">
+  <img src="../assets/comparisons-shrinking-approaches.svg" alt="Integrated shrinking vs. byte-stream shrinking" width="700">
+</p>
 
 jqwik's integrated shrinking means shrinking quality depends partly on how well each individual generator's shrinking logic was written, including any custom generator a user writes themselves. JHusk's internal shrinking works generically, once, over the underlying byte stream shared by every generator, so a custom generator built through composition (see [Guide: Generators](../guide/generators.md)) inherits high-quality shrinking automatically, without its author writing any shrinking logic at all.
 
@@ -27,7 +29,3 @@ JHusk's shrinking design is a direct descendant of Hypothesis, created by David 
 Property-based testing itself traces back to QuickCheck, created by Koen Claessen and John Hughes for Haskell in 2000. Both Hypothesis and QuickCheck did the hard conceptual work this library builds on, and neither JHusk's design nor its documentation would have been possible without them.
 
 Thanks are also due to the broader lineage of property-based testing tools across the Java ecosystem and beyond — jqwik, QuickTheories, junit-quickcheck, Hedgehog, fast-check, PropEr, test.check, ScalaCheck, and RapidCheck among them — for continuing to demonstrate, each in their own language and their own way, that this style of testing is worth the investment.
-
-## Next
-
-- [Architecture](architecture.md) — the mechanics behind JHusk's byte-stream shrinking

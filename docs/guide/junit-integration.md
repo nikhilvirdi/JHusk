@@ -4,7 +4,9 @@ JHusk integrates natively with JUnit 5 through the `@Property` annotation, paire
 
 Properties run alongside regular `@Test` methods in the same test class, appear in the same test reports, and behave like any other JUnit 5 test as far as your build tool and CI setup are concerned. A `@Property` method shows up as a single test in your report, not one entry per generated example, even though internally it's running JHusk's full generate, check, and shrink loop against potentially hundreds of inputs.
 
-![JUnit integration call chain](junit-call-chain.svg)
+<p align="center">
+  <img src="../assets/junit-call-chain.svg" alt="JUnit integration call chain" width="700">
+</p>
 
 ## What actually happens underneath
 
@@ -52,8 +54,3 @@ void reversingTwiceReturnsTheOriginalList(@ForAll("integerLists") List<Integer> 
 ```
 
 The referenced method must be `static`, take no arguments, and return a `Generator<T>`.
-
-## Next
-
-- [Guide: Understanding Failures](failures.md) — reading a shrunk report, seeds, and failure persistence
-- [Troubleshooting](../troubleshooting.md) — common mistakes when setting up a `@Property` test

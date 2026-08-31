@@ -27,7 +27,9 @@ Original Exception:
 
 JHusk searches for a smaller version that still fails, and reports the minimal case: a 50-element mess shrinks to a single element, `11`, one past the boundary the property actually cares about. Rather than staring down fifty arbitrary numbers trying to spot a pattern, you're looking at exactly the value that matters.
 
-![Shrinking search reducing a failing input](failures-shrinking-search.svg)
+<p align="center">
+  <img src="../assets/failures-shrinking-search.svg" alt="Shrinking search reducing a failing input" width="700">
+</p>
 
 ## Shrinking, seeds & reproducibility
 
@@ -41,7 +43,9 @@ Not passing a seed at all, calling plain `check()`, draws a fresh seed each time
 
 Beyond seed-based reproduction within a single debugging session, JHusk also keeps a longer-lived memory of failures across separate runs entirely.
 
-![Failure persistence flow across runs](failures-persistence-flow.svg)
+<p align="center">
+  <img src="../assets/failures-persistence-flow.svg" alt="Failure persistence flow across runs" width="700">
+</p>
 
 Once JHusk finds a failing input, it saves the byte stream that produced it to a local file, by default under a `.jhusk` directory relative to your project. The next time that property runs, JHusk replays that stored failure first, before generating any new random examples. This means a bug you believed was fixed can't quietly resurface without JHusk catching it immediately on the very next run, since the exact input that broke things before is checked again automatically.
 
@@ -65,8 +69,3 @@ Duration: 13.5s
 ```
 
 A failing property expands with the full shrunk report shown above, immediately, rather than waiting until the whole run finishes.
-
-## Next
-
-- [Troubleshooting](../troubleshooting.md) — common mistakes and how to read the exception you're seeing
-- [Architecture](../design/architecture.md) — how shrinking actually works underneath the byte stream

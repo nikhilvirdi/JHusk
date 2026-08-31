@@ -67,8 +67,3 @@ A value rejected by this predicate counts as an invalid run, exactly like a filt
 Note: `assuming` and `withGenerationBudget` are currently only available via direct `Property.forAll(...)` usage, not through the `@Property` JUnit annotation. See [JUnit Integration](junit-integration.md) for the full set of options available there.
 
 `Property<T>` is a mutable builder, so the pattern is always the same: configure whatever options you need on one thread, then call `check()`. Don't mutate a `Property` instance's configuration concurrently with a `check()` call already in progress, and don't call `check()` concurrently on the same instance from multiple threads — running `check()` concurrently across *different* `Property` instances is safe, even when those instances share a failure-storage directory and property identity.
-
-## Next
-
-- [Guide: JUnit Integration](junit-integration.md) — the `@Property`/`@ForAll` equivalent of these options
-- [Guide: Understanding Failures](failures.md) — what a property reports when it finds a falsifying input

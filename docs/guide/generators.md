@@ -44,7 +44,9 @@ A quick and important note on `Generators.optionals()`: it returns `Generator<T>
 
 Almost every generator you'll actually use in a real test suite is built by composing the primitives above, rather than writing a generator from first principles. The three composition tools you'll reach for most often are `map`, `filter`, and `flatMap`, along with the standalone `combine` function for joining multiple independent generators together.
 
-![Generator composition chain](generators-composition.svg)
+<p align="center">
+  <img src="../assets/generators-composition.svg" alt="Generator composition chain" width="700">
+</p>
 
 `map` transforms the output of a generator without changing how often it runs or what values it can produce, it just applies a function to whatever comes out:
 
@@ -80,8 +82,3 @@ Generator<Point> points = Generators.combine(
 This builds a generator for a custom `Point` type out of two integer generators, with no manual randomness or bounds-checking code required. Because JHusk's shrinking works generically over the underlying byte stream (see [Architecture](../design/architecture.md)), this composed generator gets the same quality of shrinking as any built-in generator, without its author writing a single line of shrinking logic.
 
 For a custom type built from several fields, this pattern scales naturally: keep composing `combine` calls, or nest `flatMap` where one field's valid range genuinely depends on another's, and the resulting generator will shrink sensibly without any additional effort.
-
-## Next
-
-- [Guide: Properties](properties.md) — configuring the property that runs your generators
-- [Guide: Understanding Failures](failures.md) — what happens when a generated value breaks your rule

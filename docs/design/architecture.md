@@ -2,13 +2,17 @@
 
 Underneath JHusk's public API, every generator is ultimately an interpreter over a stream of bytes supplied by a `DataSource`. Rather than each generator type implementing its own randomness and its own shrinking behavior, generation and shrinking both operate on that shared byte stream, which is what allows a single general-purpose shrinker to work correctly across every generator, custom or built-in, without any generator author needing to implement shrinking logic themselves.
 
-![Byte stream interpreted through a Span tree into a value](architecture-byte-stream.svg)
+<p align="center">
+  <img src="../assets/architecture-byte-stream.svg" alt="Byte stream interpreted through a Span tree into a value" width="700">
+</p>
 
 ## Package layering
 
 The codebase is organized in three layers, each depending only on the one below it:
 
-![Package layering: junit, public API, and internal engine](architecture-package-layers.svg)
+<p align="center">
+  <img src="../assets/architecture-package-layers.svg" alt="Package layering: junit, public API, and internal engine" width="700">
+</p>
 
 - **`internal/`** — the engine. `DataSource` is the raw byte stream every generator reads from. `Span` records which stretch of bytes produced which value, so the shrinker knows what's safe to delete. `Shrinker`/`ShrinkHarness` run the actual minimization search.
 - **Root package** — the public API. `Generator`, `Generators`, `Property`, `FailureStorage`, and the exception hierarchy. Everything you touch directly as a user.
@@ -30,7 +34,9 @@ A handful of specific encoding choices shape how generation and shrinking behave
 
 ## The shrinking algorithm
 
-![The byte-buffer shrinking loop](architecture-shrink-loop.svg)
+<p align="center">
+  <img src="../assets/architecture-shrink-loop.svg" alt="The byte-buffer shrinking loop" width="700">
+</p>
 
 Shrinking works by minimizing the underlying byte stream directly, then re-running every generator's interpretation logic on the shrunk bytes to get a smaller value. Concretely: the shrinker tries deleting a `Span`'s byte range, re-runs the interpreter on the resulting shorter buffer, and checks whether the property still fails. If it does, the smaller buffer replaces the current best failure and the search continues from there; if it doesn't, that particular reduction is discarded and a different one is tried. This repeats until no further reduction still reproduces the failure.
 
@@ -39,8 +45,3 @@ Shrinking works by minimizing the underlying byte stream directly, then re-runni
 `Property.check()` distinguishes two categories of failure through its exception hierarchy. `AssertionError` is reserved for genuine property falsification — a value was generated, the assertion ran, and it genuinely failed, mirroring JUnit's own convention where `AssertionFailedError` extends `AssertionError`. `PropertyExecutionException`, which extends `RuntimeException`, covers cases where a normal check cycle couldn't complete at all: an exhausted invalid-run budget or a generator crash. It has three subtypes covering the specific cause — `FilterExhaustedException`, `GenerationBudgetExceededException`, and `GeneratorCrashException` — so code that wants to distinguish an over-restrictive filter from an exhausted generation budget from a crashing generator can catch the specific subtype instead of parsing the message.
 
 This split exists because `AssertionError` does not extend `RuntimeException`, so code that wraps `check()` in a `catch (RuntimeException e)` needs `PropertyExecutionException` (or one of its subtypes) to actually be catchable that way, while still letting a real, assertion-driven test failure propagate as a true `AssertionError`, exactly as JUnit itself expects.
-
-## Next
-
-- [Comparisons](comparisons.md) — how this differs from jqwik's integrated shrinking
-- [Guide: Generators](../guide/generators.md) — how this architecture makes custom generators shrink for free
