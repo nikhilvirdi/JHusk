@@ -45,10 +45,23 @@ class ReadmeExamplesTest {
     @Test
     @DisplayName("the minimal-property README sample runs cleanly")
     void minimalPropertySampleRuns() {
-        Events events = engine("junit-jupiter")
-                .selectors(selectClass(ListReverseExample.class))
-                .execute()
-                .testEvents();
+        // EngineTestKit bypasses the real Launcher entirely, so this nested fixture run never
+        // reaches the outer real test plan's own TestExecutionListener -- but it still runs on the
+        // same thread and still goes through the real PropertyExtension, which would otherwise
+        // report this fixture's result to whatever sink is registered for the OUTER test run this
+        // method is running inside of, inflating its example/pass counts with a result the outer
+        // run's own executionFinished-based bookkeeping never actually counted.
+        io.github.nikhilvirdi.jhusk.internal.PropertyReporting.Sink suspended =
+            io.github.nikhilvirdi.jhusk.internal.PropertyReporting.setSink(null);
+        Events events;
+        try {
+            events = engine("junit-jupiter")
+                    .selectors(selectClass(ListReverseExample.class))
+                    .execute()
+                    .testEvents();
+        } finally {
+            io.github.nikhilvirdi.jhusk.internal.PropertyReporting.restoreSink(suspended);
+        }
 
         events.assertStatistics(stats -> stats.started(1).succeeded(1).failed(0));
     }

@@ -109,9 +109,7 @@ class PropertyExtensionTest {
         Path jhuskDir = Path.of(".jhusk");
         List<Path> before = listJhuskFiles(jhuskDir);
 
-        EngineTestKit.engine("junit-jupiter")
-                .selectors(selectClass(TwoUnnamedFailingProperties.class))
-                .execute();
+        runIsolated(TwoUnnamedFailingProperties.class);
 
         List<Path> after = listJhuskFiles(jhuskDir);
         List<Path> created = after.stream().filter(p -> !before.contains(p)).collect(Collectors.toList());
@@ -127,6 +125,30 @@ class PropertyExtensionTest {
         }
     }
 
+    /**
+     * Runs {@code testClass} through {@code EngineTestKit}, with {@code PropertyReporting}'s
+     * registered sink (see its javadoc) temporarily suspended.
+     *
+     * <p>{@code EngineTestKit} bypasses the real {@code Launcher} entirely, so these nested
+     * fixture executions never reach the outer real test plan's own {@code TestExecutionListener}
+     * -- but they still run on the same thread and still go through the real
+     * {@code PropertyExtension}, which would otherwise report these intentionally-failing
+     * fixtures to whatever sink happens to be registered for the OUTER test run this method is
+     * running inside of, misattributing them as real {@code @Property} results there.
+     */
+    private static Events runIsolated(Class<?> testClass) {
+        io.github.nikhilvirdi.jhusk.internal.PropertyReporting.Sink suspended =
+            io.github.nikhilvirdi.jhusk.internal.PropertyReporting.setSink(null);
+        try {
+            return EngineTestKit.engine("junit-jupiter")
+                .selectors(selectClass(testClass))
+                .execute()
+                .testEvents();
+        } finally {
+            io.github.nikhilvirdi.jhusk.internal.PropertyReporting.restoreSink(suspended);
+        }
+    }
+
     private static List<Path> listJhuskFiles(Path dir) throws IOException {
         if (!Files.isDirectory(dir)) {
             return List.of();
@@ -139,10 +161,7 @@ class PropertyExtensionTest {
     @Test
     @DisplayName("A method annotated @Property with @ForAll runs successfully when property holds")
     void passingPropertyRunsSuccessfully() {
-        Events events = EngineTestKit.engine("junit-jupiter")
-                .selectors(selectClass(PassingTestCases.class))
-                .execute()
-                .testEvents();
+        Events events = runIsolated(PassingTestCases.class);
 
         events.failed().list().forEach(System.out::println);
         events.assertStatistics(stats -> stats.started(3).succeeded(3).failed(0));
@@ -151,10 +170,7 @@ class PropertyExtensionTest {
     @Test
     @DisplayName("generationBudget is respected when set via @Property annotation")
     void generationBudgetIsRespected() {
-        Events events = EngineTestKit.engine("junit-jupiter")
-                .selectors(selectClass(GenerationBudgetTestCases.class))
-                .execute()
-                .testEvents();
+        Events events = runIsolated(GenerationBudgetTestCases.class);
 
         events.assertStatistics(stats -> stats.started(1).succeeded(0).failed(1));
 
@@ -175,10 +191,7 @@ class PropertyExtensionTest {
     @Test
     @DisplayName("A failing @Property produces a JUnit failure containing the shrunk report")
     void failingPropertyProducesJUnitFailureWithReport() {
-        Events events = EngineTestKit.engine("junit-jupiter")
-                .selectors(selectClass(FailingTestCases.class))
-                .execute()
-                .testEvents();
+        Events events = runIsolated(FailingTestCases.class);
 
         events.assertStatistics(stats -> stats.started(1).succeeded(0).failed(1));
 

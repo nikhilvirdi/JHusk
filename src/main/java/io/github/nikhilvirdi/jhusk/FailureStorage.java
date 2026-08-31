@@ -97,7 +97,7 @@ public class FailureStorage {
             moveIntoPlaceWithRetry(tempFile, filePath);
         } catch (IOException e) {
             // Failure persistence is best-effort; log or swallow rather than crashing the test runner
-            System.err.println("[JHusk Warning] Failed to save failure buffer for property '" + propertyId + "': " + e.getMessage());
+            io.github.nikhilvirdi.jhusk.internal.ConsolidatedWarnings.record("save", propertyId, e.getMessage());
             if (tempFile != null) {
                 try {
                     Files.deleteIfExists(tempFile);
@@ -158,7 +158,7 @@ public class FailureStorage {
             // returning empty here (as if no failure were stored) would hide a real problem --
             // e.g. a permissions error or a torn file from the concurrent-write race documented
             // above -- behind what looks like a clean, regression-free run.
-            System.err.println("[JHusk Warning] Failed to load failure buffer for property '" + propertyId + "': " + e.getMessage());
+            io.github.nikhilvirdi.jhusk.internal.ConsolidatedWarnings.record("load", propertyId, e.getMessage());
             return Optional.empty();
         }
     }
@@ -173,7 +173,7 @@ public class FailureStorage {
         try {
             Files.deleteIfExists(filePath);
         } catch (IOException e) {
-            System.err.println("[JHusk Warning] Failed to prune failure buffer for property '" + propertyId + "': " + e.getMessage());
+            io.github.nikhilvirdi.jhusk.internal.ConsolidatedWarnings.record("prune", propertyId, e.getMessage());
         }
     }
 

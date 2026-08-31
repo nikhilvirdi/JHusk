@@ -2,8 +2,10 @@ package io.github.nikhilvirdi.jhusk;
 
 import io.github.nikhilvirdi.jhusk.internal.DataSource;
 import io.github.nikhilvirdi.jhusk.internal.DataSourceOverrunException;
+import io.github.nikhilvirdi.jhusk.internal.PropertyReporting;
 import io.github.nikhilvirdi.jhusk.internal.ShrinkHarness;
 import io.github.nikhilvirdi.jhusk.internal.Shrinker;
+import io.github.nikhilvirdi.jhusk.internal.TerminalFormat;
 
 import java.nio.file.Path;
 import java.util.Optional;
@@ -96,7 +98,7 @@ public final class Property<T> {
 
     private static void maybePrintBanner() {
         if (BANNER_PRINTED.compareAndSet(false, true)) {
-            if (Boolean.parseBoolean(System.getProperty("jhusk.banner", "true"))) {
+            if (Boolean.parseBoolean(System.getProperty("jhusk.banner", "false"))) {
                 System.out.println(BANNER_ART.replace('.', ' '));
             }
         }
@@ -326,6 +328,7 @@ public final class Property<T> {
      * @throws PropertyExecutionException if the invalid-run budget is exhausted or the generator crashes
      */
     public void check(long masterSeed) {
+        long startNanos = System.nanoTime();
         maybePrintBanner();
         String propertyId = resolvePropertyId();
 
@@ -365,6 +368,12 @@ public final class Property<T> {
             }
 
             if (stillFails) {
+                PropertyReporting.Sink sink = PropertyReporting.activeSink();
+                if (sink != null) {
+                    String cause = storedFailure.getClass().getSimpleName() + ": " + storedFailure.getMessage();
+                    sink.reportFail(propertyId, 0, String.valueOf(storedValue), masterSeed, cause);
+                }
+
                 // Stored failure STILL FAILS! Report immediately without running new examples.
                 String report = String.format(
                     "\n\n======================================================================\n" +
@@ -406,7 +415,6 @@ public final class Property<T> {
         int invalidRuns = 0;
         int overrunRuns = 0;
         int assumptionRejections = 0;
-        int edgeCaseSuccesses = 0;
 
         for (byte fillByte : EDGE_CASE_FILL_BYTES) {
             byte[] edgeBuffer = buildEdgeCaseBuffer(fillByte);
@@ -442,7 +450,6 @@ public final class Property<T> {
             try {
                 runAssertion(value, masterSeed);
                 successfulRuns++;
-                edgeCaseSuccesses++;
             } catch (Throwable failure) {
                 if (failure instanceof PropertyTimeoutException) {
                     throw (PropertyTimeoutException) failure; // should not occur here since
@@ -563,13 +570,16 @@ public final class Property<T> {
             }
         }
 
-        int filterOnlyRejections = invalidRuns - overrunRuns - assumptionRejections;
-        System.out.printf(
-            "JHusk: %s passed - %d examples (%d edge cases + %d random), "
-            + "%d invalid (%d overrun, %d filter, %d assumption)%n",
-            propertyId, successfulRuns, edgeCaseSuccesses,
-            successfulRuns - edgeCaseSuccesses, invalidRuns, overrunRuns,
-            filterOnlyRejections, assumptionRejections);
+        long durationNanos = System.nanoTime() - startNanos;
+        PropertyReporting.Sink sink = PropertyReporting.activeSink();
+        if (sink != null) {
+            sink.reportPass(propertyId, successfulRuns, durationNanos);
+        } else {
+            // Raw (non-JUnit) usage: no summary listener is collecting results, so print a single
+            // flat PASS line directly, matching the same PASS/FAIL format the junit package uses.
+            System.out.println(TerminalFormat.label(true) + "  " + propertyId + "   "
+                + successfulRuns + " examples   " + TerminalFormat.formatSeconds(durationNanos));
+        }
     }
 
     private void runAssertion(T value, long masterSeed) throws Throwable {
@@ -628,6 +638,12 @@ public final class Property<T> {
         T shrunkValue = generator.generate(shrunkSource);
 
         int shrinkAttempts = harness.getAttempts();
+
+        PropertyReporting.Sink sink = PropertyReporting.activeSink();
+        if (sink != null) {
+            String cause = failure.getClass().getSimpleName() + ": " + failure.getMessage();
+            sink.reportFail(propertyId, shrinkAttempts, String.valueOf(shrunkValue), masterSeed, cause);
+        }
 
         String report = String.format(
             "\n\n======================================================================\n" +

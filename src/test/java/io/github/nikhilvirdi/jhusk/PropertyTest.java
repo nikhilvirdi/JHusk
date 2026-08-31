@@ -671,25 +671,45 @@ class PropertyTest {
     @DisplayName("Banner and stats output tests")
     class BannerAndStatsTests {
 
+        private static final String BANNER_FIRST_LINE = "     ## ##   ## ##   ##  #####  ##   ##";
+
         @Test
-        @DisplayName("Banner prints exactly once across multiple check() calls")
-        void bannerPrintsExactlyOnce() {
+        @DisplayName("Banner is OFF by default (no jhusk.banner flag set)")
+        void bannerOffByDefault() {
             Property.resetBannerStateForTesting();
             PrintStream originalOut = System.out;
             ByteArrayOutputStream captured = new ByteArrayOutputStream();
             try {
                 System.setOut(new PrintStream(captured));
                 Property.forAll(Generators.integers(1, 1), v -> { }).examples(1).check(1L);
-                Property.forAll(Generators.integers(1, 1), v -> { }).examples(1).check(2L);
             } finally {
                 System.setOut(originalOut);
             }
 
+            assertFalse(captured.toString().contains(BANNER_FIRST_LINE),
+                "Banner must NOT appear when jhusk.banner is unset (default flipped to off)");
+        }
+
+        @Test
+        @DisplayName("jhusk.banner=true re-enables the banner, printed exactly once across multiple check() calls")
+        void explicitFlagReenablesBannerExactlyOnce() {
+            Property.resetBannerStateForTesting();
+            PrintStream originalOut = System.out;
+            ByteArrayOutputStream captured = new ByteArrayOutputStream();
+            try {
+                System.setProperty("jhusk.banner", "true");
+                System.setOut(new PrintStream(captured));
+                Property.forAll(Generators.integers(1, 1), v -> { }).examples(1).check(1L);
+                Property.forAll(Generators.integers(1, 1), v -> { }).examples(1).check(2L);
+            } finally {
+                System.setOut(originalOut);
+                System.clearProperty("jhusk.banner");
+            }
+
             String output = captured.toString();
-            String bannerFirstLine = "     ## ##   ## ##   ##  #####  ##   ##";
-            int firstIndex = output.indexOf(bannerFirstLine);
-            assertTrue(firstIndex >= 0, "Banner must appear at least once");
-            int secondIndex = output.indexOf(bannerFirstLine, firstIndex + bannerFirstLine.length());
+            int firstIndex = output.indexOf(BANNER_FIRST_LINE);
+            assertTrue(firstIndex >= 0, "Banner must appear at least once when jhusk.banner=true");
+            int secondIndex = output.indexOf(BANNER_FIRST_LINE, firstIndex + BANNER_FIRST_LINE.length());
             assertEquals(-1, secondIndex, "Banner must NOT appear a second time");
         }
 
@@ -708,13 +728,12 @@ class PropertyTest {
                 System.clearProperty("jhusk.banner");
             }
 
-            String output = captured.toString();
-            String bannerFirstLine = "     ## ##   ## ##   ##  #####  ##   ##";
-            assertFalse(output.contains(bannerFirstLine), "Banner must NOT appear when jhusk.banner=false");
+            assertFalse(captured.toString().contains(BANNER_FIRST_LINE),
+                "Banner must NOT appear when jhusk.banner=false");
         }
 
         @Test
-        @DisplayName("Stats line shows correct counts for a trivially-true property with examples(5)")
+        @DisplayName("PASS line shows the label, example count, and a duration for a trivially-true property")
         void statsLineAccuracy() {
             Property.resetBannerStateForTesting();
             PrintStream originalOut = System.out;
@@ -727,14 +746,14 @@ class PropertyTest {
             }
 
             String output = captured.toString();
+            assertTrue(output.contains("PASS"), "New format uses the PASS text label");
+            assertTrue(output.contains("statsLineAccuracy"), "Auto-resolved property id must name this test method");
             assertTrue(output.contains("5 examples"), "Total examples must be 5 (2 edge + 3 random)");
-            assertTrue(output.contains("2 edge cases"), "Edge case count must be 2");
-            assertTrue(output.contains("3 random"), "Random count must be 3");
-            assertTrue(output.contains("0 invalid"), "Invalid runs must be 0");
+            assertTrue(output.matches("(?s).*\\d+\\.\\d{2}s.*"), "A duration like '0.00s' must be present");
         }
 
         @Test
-        @DisplayName("Stats line does NOT appear when property fails")
+        @DisplayName("No PASS line appears when the property fails")
         void noStatsLineOnFailure() {
             Property.resetBannerStateForTesting();
             PrintStream originalOut = System.out;
@@ -750,8 +769,7 @@ class PropertyTest {
                 System.setOut(originalOut);
             }
 
-            String output = captured.toString();
-            assertFalse(output.contains("passed"), "Stats 'passed' line must NOT appear on failure");
+            assertFalse(captured.toString().contains("PASS"), "No PASS line must appear on failure");
         }
     }
 }

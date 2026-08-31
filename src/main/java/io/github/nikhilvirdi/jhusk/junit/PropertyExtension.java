@@ -124,12 +124,29 @@ public class PropertyExtension implements TestTemplateInvocationContextProvider 
                 runner.withGenerationBudget(propAnnotation.generationBudget());
             }
 
-            // 4. Execute the property loop
-            if (propAnnotation.seed().isBlank()) {
-                runner.check();
-            } else {
-                long masterSeed = Long.parseLong(propAnnotation.seed().replaceAll("L$", ""));
-                runner.check(masterSeed);
+            if (propAnnotation.timeoutMillis() != -1) {
+                runner.timeoutPerExample(java.time.Duration.ofMillis(propAnnotation.timeoutMillis()));
+            }
+
+            // 4. Execute the property loop.
+            //
+            // Reporting is enabled on this thread ONLY for the duration of this exact check()
+            // call, so that a direct Property.forAll(...).check() made from inside a plain @Test
+            // body -- JHusk's own white-box tests of Property's failure-reporting behavior do
+            // exactly this -- is never mistaken for a real @Property result: that call runs on
+            // the same thread, but never goes through this enable/disable pair, so
+            // PropertyReporting.activeSink() correctly returns null for it regardless of whether
+            // a summary listener is registered for the run. See PropertyReporting's javadoc.
+            io.github.nikhilvirdi.jhusk.internal.PropertyReporting.beginReporting();
+            try {
+                if (propAnnotation.seed().isBlank()) {
+                    runner.check();
+                } else {
+                    long masterSeed = Long.parseLong(propAnnotation.seed().replaceAll("L$", ""));
+                    runner.check(masterSeed);
+                }
+            } finally {
+                io.github.nikhilvirdi.jhusk.internal.PropertyReporting.endReporting();
             }
 
             // Skip the default invocation.proceed() because we already reflectively invoked the method N times.

@@ -55,4 +55,15 @@ public @interface Property {
      * @return the generation budget in bytes, or {@code -1} to use the default
      */
     int generationBudget() default -1;
+
+    /**
+     * An explicit per-example timeout in milliseconds, overriding the default of no timeout
+     * (each example runs on the current thread with no time limit). Use this when the annotated
+     * method might legitimately hang -- e.g. a generator could produce input that triggers an
+     * infinite loop bug -- and JHusk should fail fast with a {@link
+     * io.github.nikhilvirdi.jhusk.PropertyTimeoutException} instead of hanging the whole test run.
+     *
+     * @return the per-example timeout in milliseconds, or {@code -1} to use the default of no timeout
+     */
+    long timeoutMillis() default -1;
 }

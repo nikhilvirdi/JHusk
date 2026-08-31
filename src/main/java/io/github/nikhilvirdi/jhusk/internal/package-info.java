@@ -1,8 +1,12 @@
 /**
  * JHusk's implementation details: byte-stream generation/replay ({@link
- * io.github.nikhilvirdi.jhusk.internal.DataSource}, {@link io.github.nikhilvirdi.jhusk.internal.Span})
- * and the shrinker ({@link io.github.nikhilvirdi.jhusk.internal.Shrinker}, {@link
- * io.github.nikhilvirdi.jhusk.internal.ShrinkHarness}).
+ * io.github.nikhilvirdi.jhusk.internal.DataSource}, {@link io.github.nikhilvirdi.jhusk.internal.Span}),
+ * the shrinker ({@link io.github.nikhilvirdi.jhusk.internal.Shrinker}, {@link
+ * io.github.nikhilvirdi.jhusk.internal.ShrinkHarness}), and the terminal-reporting bridge shared
+ * by {@code Property} and the {@code junit} package's summary listener ({@link
+ * io.github.nikhilvirdi.jhusk.internal.PropertyReporting}, {@link
+ * io.github.nikhilvirdi.jhusk.internal.TerminalFormat}, {@link
+ * io.github.nikhilvirdi.jhusk.internal.ConsolidatedWarnings}).
  *
  * <p><b>Package layout note:</b> a natural alternative would split this package into separate
  * {@code .shrink} (shrink passes/ordering) and {@code .db} (persistence) packages alongside
