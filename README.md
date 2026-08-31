@@ -12,7 +12,7 @@ JHusk was built by a single developer as a way of bringing Hypothesis-style, int
 
 ## Documentation
 
-This README covers what JHusk is and who it's for. For everything else, installation, a full quickstart walkthrough, generator composition, configuring properties, JUnit integration, understanding failures, thread safety, architecture, and comparisons to other libraries, see the full documentation: **[docs/index.md](docs/index.md)**.
+This README covers what JHusk is and who it's for. For everything else, installation, a full quickstart walkthrough, generator composition, configuring properties, JUnit integration, understanding failures, thread safety, architecture, and comparisons to other libraries, see the full documentation site: **[nikhilvirdi.github.io/JHusk](https://nikhilvirdi.github.io/JHusk/)**.
 
 ## Who Is JHusk For?
 
@@ -46,7 +46,7 @@ JHusk's feature set is intentionally focused. Rather than trying to cover every 
 - **Deterministic, reproducible failures** through seed-based replay, meaning any failure JHusk finds can be reproduced exactly, on demand, by anyone with the seed.
 - **Native JUnit 5 integration** through a `@Property` annotation, so property tests run alongside your regular `@Test` methods, in the same test reports, with no separate tooling required.
 
-See [docs/guide/generators.md](docs/guide/generators.md), [docs/guide/failures.md](docs/guide/failures.md), and [docs/guide/junit-integration.md](docs/guide/junit-integration.md) for the full detail behind each of these.
+See [Guide: Generators](https://nikhilvirdi.github.io/JHusk/guide/generators.html), [Guide: Understanding Failures](https://nikhilvirdi.github.io/JHusk/guide/failures.html), and [Guide: JUnit Integration](https://nikhilvirdi.github.io/JHusk/guide/junit-integration.html) for the full detail behind each of these.
 
 ## Quick Install
 
@@ -61,7 +61,7 @@ JHusk is published on Maven Central under the coordinates `io.github.nikhilvirdi
 </dependency>
 ```
 
-See [docs/installation.md](docs/installation.md) for Gradle setup, verification steps, and requirements, and [docs/quickstart.md](docs/quickstart.md) for a full walkthrough from nothing to a passing property test.
+See [Installation](https://nikhilvirdi.github.io/JHusk/installation.html) for Gradle setup, verification steps, and requirements, and [Quickstart](https://nikhilvirdi.github.io/JHusk/quickstart.html) for a full walkthrough from nothing to a passing property test.
 
 ## How JHusk Is Tested
 
@@ -71,11 +71,11 @@ That suite covered eight categories: boundary values, deeply nested composite ge
 
 It's worth being upfront about what that process actually found, rather than only reporting a final pass count.
 
-Real bugs it caught: `Property.check()` originally threw plain `AssertionError` for every kind of failure, including invalid-budget exhaustion and generator crashes. Because `AssertionError` doesn't extend `RuntimeException`, code wrapping `check()` in `catch (Exception e)` couldn't catch it. This is now fixed: `PropertyExecutionException` extends `RuntimeException` and covers budget and crash failures, while `AssertionError` is reserved for genuine property falsification. See [docs/design/architecture.md](docs/design/architecture.md) for the full exception hierarchy.
+Real bugs it caught: `Property.check()` originally threw plain `AssertionError` for every kind of failure, including invalid-budget exhaustion and generator crashes. Because `AssertionError` doesn't extend `RuntimeException`, code wrapping `check()` in `catch (Exception e)` couldn't catch it. This is now fixed: `PropertyExecutionException` extends `RuntimeException` and covers budget and crash failures, while `AssertionError` is reserved for genuine property falsification. See [Architecture](https://nikhilvirdi.github.io/JHusk/design/architecture.html) for the full exception hierarchy.
 
-Issues that turned out to be in the test suite itself, not JHusk: an apparent infinite loop traced back to a bug in the test's own planted binary search helper, not JHusk's shrinking logic. A few early failures came from incorrect assumptions baked into the tests themselves, wrong expected exception types, the `optionals()` misunderstanding covered in [docs/troubleshooting.md](docs/troubleshooting.md), and generators configured with overly strict exact sizes that were, in practice, nearly impossible to satisfy.
+Issues that turned out to be in the test suite itself, not JHusk: an apparent infinite loop traced back to a bug in the test's own planted binary search helper, not JHusk's shrinking logic. A few early failures came from incorrect assumptions baked into the tests themselves, wrong expected exception types, the `optionals()` misunderstanding covered in [Troubleshooting](https://nikhilvirdi.github.io/JHusk/troubleshooting.html), and generators configured with overly strict exact sizes that were, in practice, nearly impossible to satisfy.
 
-A known, intentional design limit rather than a defect: the 8KB default buffer cap described in [docs/design/architecture.md](docs/design/architecture.md). Several of the stress tests generated very large collections specifically to exercise this limit, and asserted that JHusk correctly reported a budget-exceeded exception in that scenario, rather than silently succeeding, hanging, or producing an incorrect result.
+A known, intentional design limit rather than a defect: the 8KB default buffer cap described in [Architecture](https://nikhilvirdi.github.io/JHusk/design/architecture.html). Several of the stress tests generated very large collections specifically to exercise this limit, and asserted that JHusk correctly reported a budget-exceeded exception in that scenario, rather than silently succeeding, hanging, or producing an incorrect result.
 
 Beyond that initial review, an independent, external adversarial test suite exists as its own repository, [jhusk-adversarial-tests](https://github.com/nikhilvirdi/jhusk-adversarial-tests). It consumes JHusk's published Maven Central artifact the same way any real project would, rather than testing against JHusk's own source tree, and covers 50 scenarios across boundary values, planted bugs, documented claim verification, and every feature introduced in 1.1.0. It found a real defect in `Generator.flatMap()`, a `filter()` that exhausted its retry budget on JHusk's built-in edge-case corpus could crash the whole property instead of being treated as an ordinary invalid run, fixed in 1.1.1. See that repository for the full methodology, every scenario, and the complete writeup of what was found.
 
