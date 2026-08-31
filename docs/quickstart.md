@@ -48,3 +48,9 @@ Notice the explicit `@ForAll("integerLists")`, pointing at a static generator fa
 ## Step 3: Run it
 
 A `@Property` method behaves like any other JUnit 5 test as far as your build and CI setup are concerned. It shows up as a single test in your test report, not one per generated example, and internally runs JHusk's full generate, check, and shrink loop.
+
+## Next
+
+- [Guide: Generators](guide/generators.md) — building custom generators for your own types
+- [Guide: Understanding Failures](guide/failures.md) — what happens when a property actually fails
+- [Guide: JUnit Integration](guide/junit-integration.md) — the full set of `@Property` options

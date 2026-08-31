@@ -45,3 +45,8 @@ Shrinking works by minimizing the underlying byte stream directly, then re-runni
 `Property.check()` distinguishes two categories of failure through its exception hierarchy. `AssertionError` is reserved for genuine property falsification — a value was generated, the assertion ran, and it genuinely failed, mirroring JUnit's own convention where `AssertionFailedError` extends `AssertionError`. `PropertyExecutionException`, which extends `RuntimeException`, covers cases where a normal check cycle couldn't complete at all: an exhausted invalid-run budget or a generator crash. It has three subtypes covering the specific cause — `FilterExhaustedException`, `GenerationBudgetExceededException`, and `GeneratorCrashException` — so code that wants to distinguish an over-restrictive filter from an exhausted generation budget from a crashing generator can catch the specific subtype instead of parsing the message.
 
 This split exists because `AssertionError` does not extend `RuntimeException`, so code that wraps `check()` in a `catch (RuntimeException e)` needs `PropertyExecutionException` (or one of its subtypes) to actually be catchable that way, while still letting a real, assertion-driven test failure propagate as a true `AssertionError`, exactly as JUnit itself expects.
+
+## Next
+
+- [Comparisons](comparisons.md) — how this differs from jqwik's integrated shrinking
+- [Guide: Generators](../guide/generators.md) — how this architecture makes custom generators shrink for free

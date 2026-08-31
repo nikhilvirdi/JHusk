@@ -29,3 +29,7 @@ JHusk's shrinking design is a direct descendant of Hypothesis, created by David 
 Property-based testing itself traces back to QuickCheck, created by Koen Claessen and John Hughes for Haskell in 2000. Both Hypothesis and QuickCheck did the hard conceptual work this library builds on, and neither JHusk's design nor its documentation would have been possible without them.
 
 Thanks are also due to the broader lineage of property-based testing tools across the Java ecosystem and beyond — jqwik, QuickTheories, junit-quickcheck, Hedgehog, fast-check, PropEr, test.check, ScalaCheck, and RapidCheck among them — for continuing to demonstrate, each in their own language and their own way, that this style of testing is worth the investment.
+
+## Next
+
+- [Architecture](architecture.md) — the mechanics behind JHusk's byte-stream shrinking

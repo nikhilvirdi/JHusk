@@ -54,3 +54,8 @@ void reversingTwiceReturnsTheOriginalList(@ForAll("integerLists") List<Integer> 
 ```
 
 The referenced method must be `static`, take no arguments, and return a `Generator<T>`.
+
+## Next
+
+- [Guide: Understanding Failures](failures.md) — reading a shrunk report, seeds, and failure persistence
+- [Troubleshooting](../troubleshooting.md) — common mistakes when setting up a `@Property` test

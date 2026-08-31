@@ -46,6 +46,7 @@ JHusk generates a hundred lists by default, including empty ones, single-element
 - [Quickstart](quickstart.md) — the shortest path from nothing to a passing property test
 - [Guide: Generators](guide/generators.md) — building custom generators through composition
 - [Guide: Properties](guide/properties.md) — configuring examples, timeouts, and generation budgets
+- [Guide: Thread Safety & Concurrency](guide/thread-safety.md) — what's safe to share across threads, and what isn't
 - [Guide: JUnit Integration](guide/junit-integration.md) — `@Property` and `@ForAll` in depth
 - [Guide: Understanding Failures](guide/failures.md) — shrinking, seeds, and failure persistence
 - [Architecture](design/architecture.md) — the byte-stream design underneath everything

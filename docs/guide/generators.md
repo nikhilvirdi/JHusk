@@ -82,3 +82,8 @@ Generator<Point> points = Generators.combine(
 This builds a generator for a custom `Point` type out of two integer generators, with no manual randomness or bounds-checking code required. Because JHusk's shrinking works generically over the underlying byte stream (see [Architecture](../design/architecture.md)), this composed generator gets the same quality of shrinking as any built-in generator, without its author writing a single line of shrinking logic.
 
 For a custom type built from several fields, this pattern scales naturally: keep composing `combine` calls, or nest `flatMap` where one field's valid range genuinely depends on another's, and the resulting generator will shrink sensibly without any additional effort.
+
+## Next
+
+- [Guide: Properties](properties.md) — configuring the property that runs your generators
+- [Guide: Understanding Failures](failures.md) — what happens when a generated value breaks your rule

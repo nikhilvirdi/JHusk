@@ -21,3 +21,8 @@ Running `check()` concurrently across *different* `Property` instances is safe, 
 - Configure a `Property` instance fully before calling `check()`, on one thread.
 - Never call `check()` concurrently on the *same* `Property` instance.
 - Calling `check()` concurrently on *different* `Property` instances is safe, including when they share a failure-storage directory.
+
+## Next
+
+- [Guide: Understanding Failures](failures.md) — what a property reports when it finds a falsifying input
+- [Guide: Generators](generators.md) — building thread-safe custom generators through composition

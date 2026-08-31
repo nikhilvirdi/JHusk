@@ -54,3 +54,7 @@ JHusk is built and tested against JDK 17, 21, and 25. It requires Java 17 as a m
 JHusk's JUnit 5 integration requires JUnit Jupiter to already be part of your project's test setup. If you're starting a project from scratch and don't yet have JUnit 5 configured, the [JUnit 5 user guide](https://junit.org/junit5/docs/current/user-guide/#writing-tests) walks through that setup.
 
 JHusk works with both Maven and Gradle, and doesn't require any build plugin beyond the standard JUnit Platform test runner your build tool already uses to discover and run JUnit 5 tests.
+
+## Next
+
+- [Quickstart](quickstart.md) — the shortest path from nothing to a passing property test

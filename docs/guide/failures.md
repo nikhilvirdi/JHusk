@@ -69,3 +69,9 @@ Duration: 13.5s
 ```
 
 A failing property expands with the full shrunk report shown above, immediately, rather than waiting until the whole run finishes.
+
+## Next
+
+- [Guide: Thread Safety & Concurrency](thread-safety.md) — failure persistence and concurrent property runs
+- [Troubleshooting](../troubleshooting.md) — common mistakes and how to read the exception you're seeing
+- [Architecture](../design/architecture.md) — how shrinking actually works underneath the byte stream
