@@ -10,9 +10,11 @@ This library is for Java developers writing unit tests who want their tests to c
 
 JHusk was built by a single developer as a way of bringing Hypothesis-style, internally-shrunk property-based testing to the JVM, an approach that, as far as this project's author is aware, no existing Java library takes in quite the same way.
 
-## Documentation
+## Links
 
-This README covers what JHusk is and who it's for. For everything else, installation, a full quickstart walkthrough, generator composition, configuring properties, JUnit integration, understanding failures, thread safety, architecture, and comparisons to other libraries, see the full documentation site: **[nikhilvirdi.github.io/JHusk](https://nikhilvirdi.github.io/JHusk/)**.
+- **[Documentation](https://nikhilvirdi.github.io/JHusk/)** — start here for installation, a full quickstart walkthrough, generator composition, configuring properties, JUnit integration, understanding failures, thread safety, architecture, and comparisons to other libraries.
+- **[API Reference (Javadoc)](https://javadoc.io/doc/io.github.nikhilvirdi/jhusk/latest/io/github/nikhilvirdi/jhusk/package-summary.html)** — the full public API, generated directly from the published artifact.
+- **[Maven Central](https://central.sonatype.com/artifact/io.github.nikhilvirdi/jhusk)** — package listing, version history, and dependency coordinates.
 
 ## Who Is JHusk For?
 
@@ -77,7 +79,7 @@ Issues that turned out to be in the test suite itself, not JHusk: an apparent in
 
 A known, intentional design limit rather than a defect: the 8KB default buffer cap described in [Architecture](https://nikhilvirdi.github.io/JHusk/design/architecture.html). Several of the stress tests generated very large collections specifically to exercise this limit, and asserted that JHusk correctly reported a budget-exceeded exception in that scenario, rather than silently succeeding, hanging, or producing an incorrect result.
 
-Beyond that initial review, an independent, external adversarial test suite exists as its own repository, [jhusk-adversarial-tests](https://github.com/nikhilvirdi/jhusk-adversarial-tests). It consumes JHusk's published Maven Central artifact the same way any real project would, rather than testing against JHusk's own source tree, and covers 50 scenarios across boundary values, planted bugs, documented claim verification, and every feature introduced in 1.1.0. It found a real defect in `Generator.flatMap()`, a `filter()` that exhausted its retry budget on JHusk's built-in edge-case corpus could crash the whole property instead of being treated as an ordinary invalid run, fixed in 1.1.1. See that repository for the full methodology, every scenario, and the complete writeup of what was found.
+Beyond that initial review, an independent, external adversarial test suite exists as its own repository, [jhusk-adversarial-tests](https://github.com/nikhilvirdi/jhusk-adversarial-tests). It consumes JHusk's published Maven Central artifact the same way any real project would, rather than testing against JHusk's own source tree, and currently covers 210 scenarios across boundary values, malformed usage, concurrency, deep generator composition, stateful command sequences, and 17 deliberately planted bugs. See that repository for the full methodology and results.
 
 ## Changelog
 
