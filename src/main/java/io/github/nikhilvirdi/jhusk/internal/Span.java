@@ -9,8 +9,8 @@ import java.util.List;
  * structure that maps semantic generator boundaries onto the flat byte stream.
  *
  * <p><b>Why Spans Exist in JHusk Architecture:</b><br>
- * A flat byte buffer has no innate structure. Later in JHusk's property-based testing workflow,
- * the shrinker (Phases 11–12) needs to reduce failing test cases by deleting specific components
+ * A flat byte buffer has no innate structure. In JHusk's property-based testing workflow,
+ * the shrinker needs to reduce failing test cases by deleting specific components
  * (such as "one element from a generated list" or "a composite object field"). Without recorded
  * structure, shrinking would be limited to deleting random raw byte ranges, which almost always
  * produces invalid or unparseable byte streams. Spans capture {@code [start, end)} byte boundaries

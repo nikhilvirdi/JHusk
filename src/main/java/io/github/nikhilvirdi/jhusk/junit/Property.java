@@ -28,7 +28,7 @@ public @interface Property {
      *
      * @return the required number of successful examples (default 100)
      */
-    int examples() default 100;
+    int examples() default io.github.nikhilvirdi.jhusk.Property.DEFAULT_EXAMPLES;
 
     /**
      * An explicit master seed (e.g. "12345L"). If empty, a random seed is used.

@@ -152,13 +152,13 @@ public class ShrinkHarness<T> {
         try {
             value = generator.generate(source);
         } catch (DataSourceOverrunException e) {
-            // Buffer didn't have enough bytes to fulfill the generator. Reject per R4.
+            // Buffer didn't have enough bytes to fulfill the generator. Reject invalid candidate.
             return false;
         } catch (Throwable t) {
             // The generator itself crashed on this buffer (not the assertion).
             // Unless this crash *was* the original failure we are shrinking, reject it.
             //
-            // Also require VALID status here (R4): a generator can throw on OVERRUN/INVALID
+            // Also require VALID status here: a generator can throw on OVERRUN/INVALID
             // garbage for reasons unrelated to the real bug -- e.g. a custom generator that
             // validates its own drawn value and throws when the buffer ran out. Without this
             // check, an exception class that happens to coincide with originalFailureClass would

@@ -126,8 +126,8 @@ public interface Generator<T> {
      * value, up to {@link #FILTER_RETRY_BUDGET} attempts.
      *
      * <p>If the budget is exhausted, the run is marked {@link DataSource.Status#INVALID} via
-     * {@link DataSource#markInvalid()} instead of throwing, consistent with how JHusk treats
-     * rejected runs elsewhere (R4).
+     * {@link DataSource#markInvalid()} instead of throwing, allowing the runner to discard
+     * and retry the run rather than failing prematurely.
      *
      * @param pred the predicate a generated value must satisfy
      * @return a filtering generator

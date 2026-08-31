@@ -361,7 +361,7 @@ public class DataSource {
      * <p>
      * <b>Why this solves the "bytes consumed" gap:</b><br>
      * In replay mode, {@link #getRecordedBuffer()} throws because no recording buffer exists.
-     * However, the shrinker (Phases 11–12) needs to know how many bytes a candidate run actually consumed
+     * However, the shrinker needs to know how many bytes a candidate run actually consumed
      * to trim unused trailing bytes. {@code totalBytesConsumed()} exposes this directly in both modes.
      *
      * @return total bytes consumed up to the current moment

@@ -82,8 +82,15 @@ public final class Commands<Model, Real> {
      * @param minSize minimum sequence length (inclusive)
      * @param maxSize maximum sequence length (inclusive)
      * @return a new {@code Commands} instance with this command generator set
+     * @throws IllegalArgumentException if {@code minSize < 0} or {@code minSize > maxSize}
      */
     public Commands<Model, Real> withCommand(Generator<Command<Model, Real>> commandGen, int minSize, int maxSize) {
+        if (minSize < 0) {
+            throw new IllegalArgumentException("minSize cannot be negative: " + minSize);
+        }
+        if (minSize > maxSize) {
+            throw new IllegalArgumentException("minSize (" + minSize + ") must be <= maxSize (" + maxSize + ")");
+        }
         return new Commands<>(initialModel, initialReal, commandGen, minSize, maxSize);
     }
 

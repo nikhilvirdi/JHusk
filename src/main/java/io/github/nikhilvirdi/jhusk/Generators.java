@@ -230,7 +230,7 @@ public final class Generators {
      *   <li>Denormalized numbers, NaN, and ±Infinity are reachable by byte reduction and
      *       don't correspond to "simpler" values in any human-useful sense.</li>
      *   <li>Hypothesis (Python) solves this with a post-hoc float-specific shrinker that
-     *       knows IEEE 754 structure. JHusk will likely need the same in later phases.</li>
+     *       knows IEEE 754 structure.</li>
      * </ul>
      * For now, this generator produces valid doubles from raw bytes, and the shrinker
      * will at least converge toward 0.0 (all-zero bytes), but intermediate shrink steps

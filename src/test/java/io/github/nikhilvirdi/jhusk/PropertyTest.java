@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Property Runner tests (Generate, Check & Failure Reporting)")
 class PropertyTest {
 
-    private static final Path FAILURE_DIR = Path.of(".jhusk");
+    private static final Path FAILURE_DIR = Path.of(FailureStorage.DEFAULT_FAILURE_DIR_NAME);
     private static final String FAILURE_PREFIX = "io.github.nikhilvirdi.jhusk.PropertyTest";
 
     @BeforeEach
@@ -493,6 +493,50 @@ class PropertyTest {
             assertThrows(IllegalArgumentException.class,
                 () -> Property.forAll(gen, v -> { }).withGenerationBudget(-5),
                 "withGenerationBudget(-5) must throw IllegalArgumentException immediately");
+        }
+    }
+
+    @Nested
+    @DisplayName("Builder method validation \u2014 examples(int), timeoutPerExample(Duration), maxInvalidRuns(int)")
+    class BuilderValidationTests {
+
+        @Test
+        @DisplayName("examples(0) and examples(-5) throw IllegalArgumentException eagerly")
+        void invalidExamplesRejectedEagerly() {
+            Generator<Integer> gen = Generators.integers();
+            assertThrows(IllegalArgumentException.class,
+                () -> Property.forAll(gen, v -> { }).examples(0),
+                "examples(0) must throw IllegalArgumentException immediately");
+            assertThrows(IllegalArgumentException.class,
+                () -> Property.forAll(gen, v -> { }).examples(-5),
+                "examples(-5) must throw IllegalArgumentException immediately");
+        }
+
+        @Test
+        @DisplayName("maxInvalidRuns(0) and maxInvalidRuns(-10) throw IllegalArgumentException eagerly")
+        void invalidMaxInvalidRunsRejectedEagerly() {
+            Generator<Integer> gen = Generators.integers();
+            assertThrows(IllegalArgumentException.class,
+                () -> Property.forAll(gen, v -> { }).maxInvalidRuns(0),
+                "maxInvalidRuns(0) must throw IllegalArgumentException immediately");
+            assertThrows(IllegalArgumentException.class,
+                () -> Property.forAll(gen, v -> { }).maxInvalidRuns(-10),
+                "maxInvalidRuns(-10) must throw IllegalArgumentException immediately");
+        }
+
+        @Test
+        @DisplayName("timeoutPerExample(ZERO) and timeoutPerExample(negative) throw IllegalArgumentException eagerly")
+        void invalidTimeoutRejectedEagerly() {
+            Generator<Integer> gen = Generators.integers();
+            assertThrows(IllegalArgumentException.class,
+                () -> Property.forAll(gen, v -> { }).timeoutPerExample(Duration.ZERO),
+                "timeoutPerExample(Duration.ZERO) must throw IllegalArgumentException immediately");
+            assertThrows(IllegalArgumentException.class,
+                () -> Property.forAll(gen, v -> { }).timeoutPerExample(Duration.ofMillis(-100)),
+                "timeoutPerExample(Duration.ofMillis(-100)) must throw IllegalArgumentException immediately");
+            assertDoesNotThrow(
+                () -> Property.forAll(gen, v -> { }).timeoutPerExample(null),
+                "timeoutPerExample(null) is the valid no-timeout sentinel and must not throw");
         }
     }
 

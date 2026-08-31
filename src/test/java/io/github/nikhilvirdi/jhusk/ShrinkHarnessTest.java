@@ -159,8 +159,8 @@ class ShrinkHarnessTest {
          * a few lines below, which correctly requires VALID status first. A custom generator that
          * validates internally and throws on OVERRUN (a plausible pattern, not a contrived one)
          * could therefore have its OVERRUN-induced exception accepted as a "reproduction" of the
-         * real bug whenever the two exception classes happened to coincide, violating R4's
-         * explicit guard ("never accept a candidate whose status is OVERRUN or INVALID").
+         * real bug whenever the two exception classes happened to coincide, violating the
+         * explicit guard that shrink candidates must never have OVERRUN or INVALID status.
          * Confirmed empirically before the fix: tryBuffer(truncated) returned true here.
          */
         @Test
@@ -189,7 +189,7 @@ class ShrinkHarnessTest {
             byte[] truncated = { 0 };
 
             assertFalse(harness.tryBuffer(truncated),
-                    "An OVERRUN-induced crash must never be accepted as a valid shrink candidate (R4), "
+                    "An OVERRUN-induced crash must never be accepted as a valid shrink candidate, "
                             + "even when its exception class coincidentally matches the original failure's");
         }
     }

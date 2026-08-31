@@ -11,6 +11,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * (which typically includes a local temp file path) on every single occurrence. The warnings
  * themselves are never suppressed -- {@link #flush()} still prints one line per distinct pair
  * that occurred, just once, with a count.
+ *
+ * @since 1.2.0
  */
 public final class ConsolidatedWarnings {
 

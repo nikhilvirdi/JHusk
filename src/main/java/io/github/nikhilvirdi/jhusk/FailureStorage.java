@@ -50,13 +50,23 @@ import java.util.Optional;
  */
 public class FailureStorage {
 
+    /**
+     * Default directory name for storing persistent failure buffers.
+     *
+     * @since 1.2.0
+     */
+    public static final String DEFAULT_FAILURE_DIR_NAME = ".jhusk";
+
+    private static final int RENAME_MAX_ATTEMPTS = 5;
+    private static final long RENAME_RETRY_BACKOFF_MILLIS = 2;
+
     private final Path storageDir;
 
     /**
      * Constructs a FailureStorage using the default {@code .jhusk/} directory in the working directory.
      */
     public FailureStorage() {
-        this(Paths.get(".jhusk"));
+        this(Paths.get(DEFAULT_FAILURE_DIR_NAME));
     }
 
     /**
@@ -121,7 +131,7 @@ public class FailureStorage {
      */
     private static void moveIntoPlaceWithRetry(Path tempFile, Path filePath) throws IOException {
         IOException lastFailure;
-        int attemptsLeft = 5;
+        int attemptsLeft = RENAME_MAX_ATTEMPTS;
         do {
             try {
                 Files.move(tempFile, filePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
@@ -129,7 +139,7 @@ public class FailureStorage {
             } catch (IOException e) {
                 lastFailure = e;
                 try {
-                    Thread.sleep(2);
+                    Thread.sleep(RENAME_RETRY_BACKOFF_MILLIS);
                 } catch (InterruptedException interrupted) {
                     Thread.currentThread().interrupt();
                     throw e;

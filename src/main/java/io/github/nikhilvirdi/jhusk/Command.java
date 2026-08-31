@@ -30,12 +30,16 @@ package io.github.nikhilvirdi.jhusk;
 public interface Command<Model, Real> {
 
     /**
+     * Determines whether this command is valid and applicable given the model's current state.
+     *
      * @param model the model's current state, before this command runs
      * @return whether this command is applicable given that state
      */
     boolean precondition(Model model);
 
     /**
+     * Computes what the model's state should become after this command runs.
+     *
      * @param model the model's current state, before this command runs
      * @return the model's new state after this command conceptually runs
      */

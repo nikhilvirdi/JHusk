@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("Commands (stateful/model-based testing)")
 class CommandsTest {
 
-    private static final Path FAILURE_DIR = Path.of(".jhusk");
+    private static final Path FAILURE_DIR = Path.of(FailureStorage.DEFAULT_FAILURE_DIR_NAME);
     private static final String FAILURE_PREFIX = "io.github.nikhilvirdi.jhusk.CommandsTest";
 
     @BeforeEach
@@ -172,5 +172,19 @@ class CommandsTest {
             Commands.startingWith(ArrayList::new, IntStack::new);
 
         assertThrows(IllegalStateException.class, commands::asProperty);
+    }
+
+    @Test
+    @DisplayName("withCommand(Generator, int, int) validates minSize and maxSize bounds eagerly")
+    void withCommandValidatesBoundsEagerly() {
+        Generator<Command<List<Integer>, IntStack>> cmdGen = pushCommandGen();
+        assertThrows(IllegalArgumentException.class,
+            () -> Commands.<List<Integer>, IntStack>startingWith(ArrayList::new, IntStack::new)
+                .withCommand(cmdGen, -1, 10),
+            "withCommand with minSize < 0 must throw IllegalArgumentException immediately");
+        assertThrows(IllegalArgumentException.class,
+            () -> Commands.<List<Integer>, IntStack>startingWith(ArrayList::new, IntStack::new)
+                .withCommand(cmdGen, 10, 5),
+            "withCommand with minSize > maxSize must throw IllegalArgumentException immediately");
     }
 }

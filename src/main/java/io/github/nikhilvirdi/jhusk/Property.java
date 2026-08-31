@@ -74,6 +74,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class Property<T> {
 
+    /**
+     * Default number of successful examples required for a property to pass.
+     *
+     * @since 1.2.0
+     */
+    public static final int DEFAULT_EXAMPLES = 100;
+
     private static final byte[] EDGE_CASE_FILL_BYTES = { (byte) 0x00, (byte) 0xFF };
     private static final AtomicBoolean BANNER_PRINTED = new AtomicBoolean(false);
 
@@ -108,7 +115,7 @@ public final class Property<T> {
     private final Consumer<T> assertion;
     
     private String name;
-    private int examples = 100;
+    private int examples = DEFAULT_EXAMPLES;
     private int maxInvalidRuns = 1000;
     private FailureStorage failureStorage = new FailureStorage();
     private Duration timeoutPerExample = null;
@@ -200,8 +207,13 @@ public final class Property<T> {
      *
      * @param examples the number of successful examples to require
      * @return this instance, for fluent chaining
+     * @throws IllegalArgumentException if {@code examples <= 0}
      */
     public Property<T> examples(int examples) {
+        if (examples <= 0) {
+            throw new IllegalArgumentException(
+                "examples must be positive but was: " + examples);
+        }
         this.examples = examples;
         return this;
     }
@@ -217,8 +229,13 @@ public final class Property<T> {
      *
      * @param maxInvalidRuns the maximum number of invalid runs to tolerate
      * @return this instance, for fluent chaining
+     * @throws IllegalArgumentException if {@code maxInvalidRuns <= 0}
      */
     public Property<T> maxInvalidRuns(int maxInvalidRuns) {
+        if (maxInvalidRuns <= 0) {
+            throw new IllegalArgumentException(
+                "maxInvalidRuns must be positive but was: " + maxInvalidRuns);
+        }
         this.maxInvalidRuns = maxInvalidRuns;
         return this;
     }
@@ -262,8 +279,13 @@ public final class Property<T> {
      *
      * @param timeout the maximum duration to allow for a single example
      * @return this instance, for fluent chaining
+     * @throws IllegalArgumentException if {@code timeout} is non-null and not positive (zero or negative)
      */
     public Property<T> timeoutPerExample(Duration timeout) {
+        if (timeout != null && (timeout.isZero() || timeout.isNegative())) {
+            throw new IllegalArgumentException(
+                "timeout must be positive but was: " + timeout);
+        }
         this.timeoutPerExample = timeout;
         return this;
     }
@@ -346,7 +368,7 @@ public final class Property<T> {
             try {
                 storedValue = generator.generate(storedSource);
                 storedSource.freeze();
-                // R4: only a VALID replay can determine pass/fail. A stored buffer can OVERRUN if
+                // Only a VALID replay can determine pass/fail. A stored buffer can OVERRUN if
                 // the generator's shape changed since it was saved (e.g. a refactor added a
                 // parameter or a composed generator now consumes more bytes) -- replay then reads
                 // zero-padded garbage for whatever ran off the end. Checking "!= INVALID" alone

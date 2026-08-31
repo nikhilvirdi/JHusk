@@ -25,6 +25,8 @@ package io.github.nikhilvirdi.jhusk.internal;
  * result: that call runs on the same thread as the surrounding JUnit test, but
  * {@code PropertyExtension} never touched that thread's gate for it, so {@link #activeSink()}
  * correctly returns {@code null} there regardless of whether a listener is registered for the run.
+ *
+ * @since 1.2.0
  */
 public final class PropertyReporting {
 

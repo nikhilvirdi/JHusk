@@ -10,6 +10,8 @@ import org.junit.platform.launcher.core.LauncherConfig;
 import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
 import org.junit.platform.launcher.core.LauncherFactory;
 
+import io.github.nikhilvirdi.jhusk.FailureStorage;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -38,7 +40,7 @@ import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
 @DisplayName("JHuskSummaryListener: grouped output, parallel fallback, and final summary")
 class JHuskSummaryListenerTest {
 
-    private static final Path FAILURE_DIR = Path.of(".jhusk");
+    private static final Path FAILURE_DIR = Path.of(FailureStorage.DEFAULT_FAILURE_DIR_NAME);
 
     @AfterEach
     void clearStoredFailures() throws IOException {

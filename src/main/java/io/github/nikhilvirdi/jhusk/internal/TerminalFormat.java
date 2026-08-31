@@ -13,6 +13,8 @@ import java.util.Locale;
  * {@code NO_COLOR} environment variable (see https://no-color.org), which beats auto-detection
  * via {@link System#console()}. If color is enabled, only the {@code PASS}/{@code FAIL} label
  * itself is tinted (green/red) -- nothing else changes color.
+ *
+ * @since 1.2.0
  */
 public final class TerminalFormat {
 

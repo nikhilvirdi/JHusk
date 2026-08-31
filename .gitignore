@@ -1,4 +1,4 @@
-# Build output
+﻿# Build output
 target/
 out/
 
@@ -17,9 +17,9 @@ Thumbs.db
 # Local test failure persistence run artifacts
 .jhusk/
 
-# Test utilities
-
-# Archived planning docs
-
 # AI coding assistant context (local use only)
 CLAUDE.md
+
+# Local codebase snapshots for external review (not repo content)
+codebase_dump.txt
+filetree.txt

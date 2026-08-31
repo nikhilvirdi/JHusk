@@ -33,22 +33,43 @@ import java.util.concurrent.atomic.AtomicLong;
  * listener's own {@link #executionFinished}/{@link #executionSkipped} callbacks, which see every
  * test in the plan) but are otherwise untouched -- their own output is entirely Surefire's / the
  * runner's concern.
+ *
+ * @since 1.2.0
  */
 public final class JHuskSummaryListener implements TestExecutionListener {
 
     private static final String SEPARATOR = "--------------------------------------------------";
 
+    /** Monotonic start timestamp in nanoseconds for calculating total test plan duration. */
     private volatile long planStartNanos;
+
+    /** When true, formats each line with a fully-qualified name instead of grouping by class. */
     private volatile boolean parallelFallback;
+
+    /** The sink registered before this test plan started, restored on completion for nested runners. */
     private volatile PropertyReporting.Sink previousSink;
+
+    /** The simple class name currently printed as a section header during sequential execution. */
     private String currentGroupClass;
 
     private final AtomicInteger totalPassed = new AtomicInteger();
     private final AtomicInteger totalFailed = new AtomicInteger();
     private final AtomicInteger totalSkipped = new AtomicInteger();
     private final AtomicLong totalExamples = new AtomicLong();
+
+    /** Collects failed property identifiers to reprint in the final summary block. */
     private final List<String> failedPropertyNames = Collections.synchronizedList(new ArrayList<>());
 
+    /**
+     * Initializes listener state at the start of a JUnit test plan execution.
+     *
+     * <p>Resets all counters, records the start timestamp, inspects configuration properties to
+     * detect whether parallel test execution is active, and registers this listener's sink with
+     * {@link PropertyReporting} to begin capturing property execution results.
+     *
+     * @param testPlan the test plan being executed
+     * @see PropertyReporting#setSink(PropertyReporting.Sink)
+     */
     @Override
     public void testPlanExecutionStarted(TestPlan testPlan) {
         planStartNanos = System.nanoTime();
@@ -62,6 +83,16 @@ public final class JHuskSummaryListener implements TestExecutionListener {
         previousSink = PropertyReporting.setSink(new SinkImpl());
     }
 
+    /**
+     * Records when a test execution is skipped by the test engine.
+     *
+     * <p>Increments the skipped test counter if the identifier represents a test method (filtering
+     * out test containers and class-level identifiers) so skipped tests are reflected in the final
+     * summary totals.
+     *
+     * @param testIdentifier identifier of the skipped test or container
+     * @param reason human-readable reason the execution was skipped, or empty if none provided
+     */
     @Override
     public void executionSkipped(TestIdentifier testIdentifier, String reason) {
         if (testIdentifier.isTest()) {
@@ -69,6 +100,16 @@ public final class JHuskSummaryListener implements TestExecutionListener {
         }
     }
 
+    /**
+     * Records the final execution status of an individual test.
+     *
+     * <p>Tracks test completion across both property-based tests and traditional tests in the plan,
+     * updating the respective pass, fail, or aborted/skipped counters. Ignores container-level
+     * notifications to ensure counts reflect individual test invocations.
+     *
+     * @param testIdentifier identifier of the test or container that finished
+     * @param result the execution outcome (SUCCESSFUL, FAILED, or ABORTED)
+     */
     @Override
     public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult result) {
         if (!testIdentifier.isTest()) {
@@ -81,6 +122,19 @@ public final class JHuskSummaryListener implements TestExecutionListener {
         }
     }
 
+    /**
+     * Concludes test plan execution, prints the final summary, and cleans up listener resources.
+     *
+     * <p>Restores the previous reporting sink in {@link PropertyReporting} (preserving nesting
+     * isolation), flushes all accumulated persistence warnings through
+     * {@link ConsolidatedWarnings#flush()}, and outputs the aggregate summary banner displaying
+     * total passed/failed/skipped tests, cumulative property examples tested, elapsed wall-clock
+     * duration, and the list of any failed property names.
+     *
+     * @param testPlan the executed test plan
+     * @see PropertyReporting#restoreSink(PropertyReporting.Sink)
+     * @see ConsolidatedWarnings#flush()
+     */
     @Override
     public void testPlanExecutionFinished(TestPlan testPlan) {
         PropertyReporting.restoreSink(previousSink);
@@ -145,12 +199,35 @@ public final class JHuskSummaryListener implements TestExecutionListener {
         return new String[]{simpleClassName, method};
     }
 
+    /**
+     * Prints a formatted passing line for a single property check.
+     *
+     * <p>Increments the aggregate example counter and formats the execution duration via
+     * {@link TerminalFormat#formatSeconds(long)}.
+     *
+     * @param propertyId the property identifier
+     * @param examples number of successful random examples completed
+     * @param durationNanos wall-clock duration in nanoseconds
+     */
     private synchronized void printPass(String propertyId, int examples, long durationNanos) {
         totalExamples.addAndGet(examples);
         String stats = examples + " examples   " + TerminalFormat.formatSeconds(durationNanos);
         printLine(propertyId, TerminalFormat.label(true), stats, false);
     }
 
+    /**
+     * Prints detailed diagnostic output for a falsified property check.
+     *
+     * <p>Records the property identifier for inclusion in the final summary list, outputs a
+     * class-qualified failure header, and prints the falsified value, reproduction seed, and
+     * triggering cause.
+     *
+     * @param propertyId the property identifier
+     * @param shrinkAttempts number of shrink iterations attempted (0 if replayed from storage)
+     * @param shrunkValue string representation of the minimal failing input
+     * @param seed master seed for reproducing this exact failure
+     * @param cause description of the underlying assertion or exception failure
+     */
     private synchronized void printFail(String propertyId, int shrinkAttempts, String shrunkValue, long seed,
                                          String cause) {
         failedPropertyNames.add(propertyId);
@@ -166,6 +243,20 @@ public final class JHuskSummaryListener implements TestExecutionListener {
         System.out.println("        Cause:  " + cause);
     }
 
+    /**
+     * Prints a formatted status line for a property result to standard output.
+     *
+     * <p>Handles grouping by class name during sequential runs or prints flat fully-qualified
+     * identifiers when parallel execution is enabled.
+     *
+     * @param propertyId the property identifier
+     * @param label the colored or plain PASS/FAIL label
+     * @param trailingStats optional trailing statistics (e.g. example count and duration), or {@code null}
+     * @param qualifyMemberName whether to include the simple class name before the method name
+     *                          ({@code SimpleClass.methodName}); {@code true} for failures so they
+     *                          remain unambiguously identifiable when scanned in isolation, and
+     *                          {@code false} for grouped passing lines to avoid repetitive output
+     */
     private void printLine(String propertyId, String label, String trailingStats, boolean qualifyMemberName) {
         String[] parts = splitClassAndMethod(propertyId);
         String suffix = trailingStats == null ? "" : "   " + trailingStats;
@@ -198,6 +289,9 @@ public final class JHuskSummaryListener implements TestExecutionListener {
         System.out.println("  " + label + "  " + memberName + suffix);
     }
 
+    /**
+     * Bridges {@link PropertyReporting.Sink} callbacks to this listener's print methods.
+     */
     private final class SinkImpl implements PropertyReporting.Sink {
         @Override
         public void reportPass(String propertyId, int examples, long durationNanos) {
