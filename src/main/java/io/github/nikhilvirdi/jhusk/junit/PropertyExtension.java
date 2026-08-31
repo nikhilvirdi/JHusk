@@ -6,6 +6,7 @@ import org.junit.jupiter.api.extension.*;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.Collections;
@@ -34,23 +35,59 @@ public class PropertyExtension implements TestTemplateInvocationContextProvider 
     public PropertyExtension() {
     }
 
+    /**
+     * Determines whether the current test method is supported by this extension as a property test template.
+     *
+     * <p>Returns {@code true} if and only if the test method is present on the context and annotated with
+     * {@link Property}, signaling to JUnit 5 that this extension should drive its execution as a test template.
+     *
+     * @param context the current extension context
+     * @return {@code true} if the target method is annotated with {@code @Property}, {@code false} otherwise
+     */
     @Override
     public boolean supportsTestTemplate(ExtensionContext context) {
         return context.getTestMethod().isPresent() &&
                context.getTestMethod().get().isAnnotationPresent(Property.class);
     }
 
+    /**
+     * Provides a single test template invocation context for executing the property check.
+     *
+     * <p>Rather than generating a distinct JUnit invocation for every individual random example, JHusk
+     * executes the entire property loop (all iterations, invalid runs, shrinking, and failure persistence)
+     * inside a single invocation interceptor. This returns a stream containing exactly one
+     * {@link PropertyInvocationContext}, ensuring the property is reported as one cohesive test outcome
+     * in JUnit reports and IDEs.
+     *
+     * @param context the current extension context
+     * @return a single-element stream containing {@link PropertyInvocationContext}
+     */
     @Override
     public Stream<TestTemplateInvocationContext> provideTestTemplateInvocationContexts(ExtensionContext context) {
         return Stream.of(new PropertyInvocationContext());
     }
 
     private static class PropertyInvocationContext implements TestTemplateInvocationContext {
+        /**
+         * Returns the display name for the single property check invocation.
+         *
+         * @param invocationIndex the 1-based index of this invocation
+         * @return the display name string {@code "Property Check"}
+         */
         @Override
         public String getDisplayName(int invocationIndex) {
             return "Property Check";
         }
 
+        /**
+         * Returns the additional extensions required to intercept execution and resolve parameters for this invocation.
+         *
+         * <p>Supplies a {@link PropertyInterceptor} to manage the property execution loop and a
+         * {@link ForAllParameterResolver} to provide valid placeholder arguments during JUnit's parameter
+         * resolution phase.
+         *
+         * @return a list containing the {@link PropertyInterceptor} and {@link ForAllParameterResolver} extensions
+         */
         @Override
         public List<Extension> getAdditionalExtensions() {
             return List.of(new PropertyInterceptor(), new ForAllParameterResolver());
@@ -162,18 +199,42 @@ public class PropertyExtension implements TestTemplateInvocationContextProvider 
                 // since this is exactly the "did I wire up @ForAll correctly" misuse scenario a
                 // user is most likely to hit while first writing a custom generator factory.
                 String methodName = forAll.value();
+
+                // A static @Property test method has no test instance -- JUnit 5's
+                // InvocationInterceptor.getTarget() returns Optional.empty() for one, so
+                // testInstance is null here -- and testInstance.getClass() would NPE before the
+                // factory lookup ever ran. Fall back to the @Property method's own declaring class
+                // only in that case; for an instance test method, keep resolving against the
+                // actual runtime instance class as before, since a subclass could declare or
+                // override the factory method itself.
+                Class<?> declaringClass = testInstance != null
+                    ? testInstance.getClass()
+                    : param.getDeclaringExecutable().getDeclaringClass();
+
                 Method factory;
                 try {
-                    factory = testInstance.getClass().getDeclaredMethod(methodName);
+                    factory = declaringClass.getDeclaredMethod(methodName);
                 } catch (NoSuchMethodException e) {
                     throw new IllegalStateException(
                         "@ForAll(\"" + methodName + "\") on a parameter of '"
                         + param.getDeclaringExecutable().getName() + "' could not find a no-argument method "
-                        + "named '" + methodName + "' in " + testInstance.getClass().getName()
+                        + "named '" + methodName + "' in " + declaringClass.getName()
                         + ". The referenced method must be static, take no arguments, and return a Generator<T>.",
                         e);
                 }
                 factory.setAccessible(true);
+
+                if (testInstance == null && !Modifier.isStatic(factory.getModifiers())) {
+                    // Reflection itself would throw a bare, confusing NullPointerException here
+                    // (Method.invoke(null, ...) on a non-static method) -- there's no test
+                    // instance to invoke the factory method on, precisely because the @Property
+                    // test method is static, so give a clear, actionable explanation instead.
+                    throw new IllegalStateException(
+                        "The generator factory method '" + methodName + "' referenced by @ForAll(\"" + methodName
+                        + "\") must be static, because the @Property test method '"
+                        + param.getDeclaringExecutable().getName() + "' is itself static and has no test "
+                        + "instance to invoke a non-static factory method on.");
+                }
 
                 Object result;
                 try {
@@ -233,11 +294,34 @@ public class PropertyExtension implements TestTemplateInvocationContextProvider 
      * reference type per JLS §5.2 and accepted by JUnit's resolution validation).
      */
     private static class ForAllParameterResolver implements ParameterResolver {
+        /**
+         * Determines whether the target method parameter should be resolved by this resolver.
+         *
+         * <p>Returns {@code true} if the parameter is annotated with {@link ForAll}, indicating it is a
+         * property input intended for generation rather than a standard JUnit fixture.
+         *
+         * @param parameterContext the context for the parameter being evaluated
+         * @param extensionContext the current extension context
+         * @return {@code true} if the parameter has the {@code @ForAll} annotation, {@code false} otherwise
+         */
         @Override
         public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext) {
             return parameterContext.isAnnotated(ForAll.class);
         }
 
+        /**
+         * Resolves a type-compatible placeholder value for a {@code @ForAll} parameter during JUnit's setup phase.
+         *
+         * <p>JUnit 5 validates resolved parameter values against their declared types before invoking
+         * interceptors. Because {@link PropertyInterceptor} skips the default invocation via
+         * {@code invocation.skip()} and executes the test method repeatedly with real generated values inside
+         * {@code Property.check()}, this resolver returns a dummy value (boxed zero-value for primitives,
+         * {@code null} for reference types) solely to satisfy JUnit's pre-invocation validation.
+         *
+         * @param parameterContext the context for the parameter being resolved
+         * @param extensionContext the current extension context
+         * @return a boxed zero-value for primitive types, or {@code null} for reference types
+         */
         @Override
         public Object resolveParameter(ParameterContext parameterContext, ExtensionContext extensionContext) {
             Class<?> type = parameterContext.getParameter().getType();

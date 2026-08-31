@@ -1,7 +1,9 @@
 package io.github.nikhilvirdi.jhusk.junit;
 
+import io.github.nikhilvirdi.jhusk.FailureStorage;
 import io.github.nikhilvirdi.jhusk.Generator;
 import io.github.nikhilvirdi.jhusk.Generators;
+import io.github.nikhilvirdi.jhusk.internal.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -11,6 +13,9 @@ import org.junit.platform.testkit.engine.Event;
 import org.junit.platform.testkit.engine.Events;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -32,7 +37,7 @@ class PropertyExtensionTest {
     // Property.check() ("Property Falsified! (Replayed Stored Failure)", "To reproduce, run:"
     // instead of "To reproduce this exact failure, run:") -- which is what made the report
     // assertions below appear to change out from under previous fix attempts.
-    private static final Path STORED_FAILURE_FILE = Path.of(".jhusk", "test-junit-failure.bytes");
+    private static final Path STORED_FAILURE_FILE = Path.of(FailureStorage.DEFAULT_FAILURE_DIR_NAME, "test-junit-failure.bytes");
 
     @BeforeEach
     @AfterEach
@@ -103,10 +108,41 @@ class PropertyExtensionTest {
         }
     }
 
+    // Regression fixtures for a static @Property test method referencing a @ForAll("...") factory:
+    // JUnit 5's InvocationInterceptor.getTarget() returns Optional.empty() for a static test
+    // method, so PropertyExtension's testInstance is null when resolving the factory. Before the
+    // fix, resolveGenerator() called testInstance.getClass() unconditionally, throwing a raw NPE
+    // before the factory lookup ever ran -- regardless of whether the referenced factory method
+    // was itself static or not.
+    static class StaticTestMethodWithStaticFactory {
+        static Generator<String> staticFactory() {
+            return Generators.just("from a static factory");
+        }
+
+        @Property(examples = 10)
+        static void staticPropertyUsesStaticFactory(@ForAll("staticFactory") String value) {
+            assertEquals("from a static factory", value);
+        }
+    }
+
+    static class StaticTestMethodWithInstanceFactory {
+        Generator<String> instanceFactory() {
+            return Generators.just("from an instance factory");
+        }
+
+        @Property(examples = 10)
+        static void staticPropertyUsesInstanceFactory(@ForAll("instanceFactory") String value) {
+            // Never reached -- resolving the @ForAll("instanceFactory") generator must fail
+            // before any example is generated, since there is no test instance to invoke a
+            // non-static factory method on.
+            fail("should never run: instance factory is unusable from a static test method");
+        }
+    }
+
     @Test
     @DisplayName("Two different unnamed @Property methods get distinct stored-failure identities, not a shared one")
     void unnamedPropertiesDoNotCollideOnAutoDetectedIdentity() throws IOException {
-        Path jhuskDir = Path.of(".jhusk");
+        Path jhuskDir = Path.of(FailureStorage.DEFAULT_FAILURE_DIR_NAME);
         List<Path> before = listJhuskFiles(jhuskDir);
 
         runIsolated(TwoUnnamedFailingProperties.class);
@@ -213,7 +249,80 @@ class PropertyExtensionTest {
 
         assertNotNull(error.getCause(), "Original exception must be preserved as cause");
         assertTrue(error.getCause() instanceof org.opentest4j.AssertionFailedError ||
-                   error.getCause() instanceof AssertionError, 
+                   error.getCause() instanceof AssertionError,
                    "Cause is the actual failed assertion");
+    }
+
+    /**
+     * Locates the private, package-inaccessible {@code PropertyExtension.PropertyInterceptor}
+     * class and constructs an instance via reflection, so {@link #resolveGeneratorViaReflection}
+     * below can call its private {@code resolveGenerator(Parameter, Object)} method directly.
+     *
+     * <p>Used only by the static-test-method regression tests below: a genuinely {@code static}
+     * {@code @Property} method is never discovered by JUnit Jupiter at all -- its own {@code
+     * IsTestableMethod} discovery predicate excludes every static method, for every testable
+     * annotation ({@code @Test}, {@code @TestTemplate}, {@code @TestFactory}), before any
+     * extension code ever runs -- so {@code resolveGenerator}'s {@code testInstance == null}
+     * branch can never be reached by running a fixture class through a real {@code Launcher} or
+     * {@code EngineTestKit}. Calling it directly, with a {@link Parameter} reflected from a real
+     * static method and an explicit {@code null} test instance, is the only way to actually
+     * exercise that branch.
+     */
+    private static Object newPropertyInterceptor() throws ReflectiveOperationException {
+        Class<?> interceptorClass = Class.forName(PropertyExtension.class.getName() + "$PropertyInterceptor");
+        var constructor = interceptorClass.getDeclaredConstructor();
+        constructor.setAccessible(true);
+        return constructor.newInstance();
+    }
+
+    private static Method resolveGeneratorMethod(Object interceptor) throws NoSuchMethodException {
+        Method method = interceptor.getClass().getDeclaredMethod("resolveGenerator", Parameter.class, Object.class);
+        method.setAccessible(true);
+        return method;
+    }
+
+    @Test
+    @DisplayName("resolveGenerator(param, null) succeeds for a static @ForAll(\"...\") factory, simulating a "
+        + "static @Property test method")
+    void resolveGeneratorSucceedsForStaticFactoryWithNullTestInstance() throws Exception {
+        Parameter param = StaticTestMethodWithStaticFactory.class
+            .getDeclaredMethod("staticPropertyUsesStaticFactory", String.class)
+            .getParameters()[0];
+
+        Object interceptor = newPropertyInterceptor();
+        Object result = resolveGeneratorMethod(interceptor).invoke(interceptor, param, null);
+
+        assertInstanceOf(Generator.class, result);
+        @SuppressWarnings("unchecked")
+        Generator<Object> generator = (Generator<Object>) result;
+        assertEquals("from a static factory", generator.generate(new DataSource(new byte[8])),
+            "The resolved generator must actually be the one staticFactory() returns");
+    }
+
+    @Test
+    @DisplayName("resolveGenerator(param, null) fails with a clear IllegalStateException, not a "
+        + "NullPointerException, when the referenced factory method is not static")
+    void resolveGeneratorFailsClearlyForInstanceFactoryWithNullTestInstance() throws Exception {
+        Parameter param = StaticTestMethodWithInstanceFactory.class
+            .getDeclaredMethod("staticPropertyUsesInstanceFactory", String.class)
+            .getParameters()[0];
+
+        Object interceptor = newPropertyInterceptor();
+        Method resolveGenerator = resolveGeneratorMethod(interceptor);
+
+        InvocationTargetException wrapped = assertThrows(InvocationTargetException.class,
+            () -> resolveGenerator.invoke(interceptor, param, null));
+        Throwable error = wrapped.getCause();
+
+        assertInstanceOf(IllegalStateException.class, error,
+            "Must fail with a clear IllegalStateException, not a bare NullPointerException or a raw "
+                + "reflection exception");
+        assertFalse(error instanceof NullPointerException);
+
+        String msg = error.getMessage();
+        assertTrue(msg.contains("instanceFactory"), "Message must name the offending factory method");
+        assertTrue(msg.contains("must be static"), "Message must explain the factory method needs to be static");
+        assertTrue(msg.contains("staticPropertyUsesInstanceFactory"),
+            "Message must name the static @Property test method that has no test instance");
     }
 }
