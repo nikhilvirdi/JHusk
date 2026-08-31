@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 550" width="640" height="550" style="background: transparent; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <defs>
+    <!-- Soft Drop Shadow -->
+    <filter id="box-shadow" x="-10%" y="-10%" width="125%" height="125%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+    
+    <!-- Light grey arrow marker -->
+    <marker id="arrow-grey" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <style>
+    .node-box { fill: rgba(148, 163, 184, 0.12); stroke: #cbd5e1; stroke-width: 1.2; filter: url(#box-shadow); }
+    .op-box { fill: rgba(15, 23, 42, 0.7); stroke: #94a3b8; stroke-width: 1.1; stroke-dasharray: 2 2; filter: url(#box-shadow); }
+    .edge-line { fill: none; stroke: #94a3b8; stroke-width: 1.2; }
+    .text-title { fill: #f8fafc; font-size: 13px; font-weight: 600; text-anchor: middle; }
+    .text-sub { fill: #cbd5e1; font-size: 12px; font-weight: 400; text-anchor: middle; }
+    .text-code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; fill: #e2e8f0; }
+    .text-op { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; fill: #e2e8f0; font-weight: 500; text-anchor: middle; }
+  </style>
+
+  <!-- ================= CONNECTORS & ARROWS ================= -->
+
+  <!-- Arrow 1 -> 2 -->
+  <line x1="320" y1="72" x2="320" y2="126" class="edge-line" marker-end="url(#arrow-grey)"/>
+  
+  <!-- Arrow 2 -> 3 -->
+  <line x1="320" y1="182" x2="320" y2="236" class="edge-line" marker-end="url(#arrow-grey)"/>
+  
+  <!-- Arrow 3 -> 4 -->
+  <line x1="320" y1="292" x2="320" y2="346" class="edge-line" marker-end="url(#arrow-grey)"/>
+
+  <!-- Arrow 4 -> 5 -->
+  <line x1="320" y1="402" x2="320" y2="456" class="edge-line" marker-end="url(#arrow-grey)"/>
+
+  <!-- ================= OPERATION BADGES ================= -->
+
+  <!-- Op 1 -->
+  <rect x="135" y="87" width="370" height="24" rx="4" class="op-box"/>
+  <text x="320" y="103" class="text-op">PropertyExtension resolves @ForAll parameter generators</text>
+
+  <!-- Op 2 -->
+  <rect x="175" y="197" width="290" height="24" rx="4" class="op-box"/>
+  <text x="320" y="213" class="text-op">builds runner &amp; calls Property.check()</text>
+
+  <!-- Op 3 -->
+  <rect x="160" y="307" width="320" height="24" rx="4" class="op-box"/>
+  <text x="320" y="323" class="text-op">drives generate / check / shrink loop internally</text>
+
+  <!-- Op 4 -->
+  <rect x="170" y="417" width="300" height="24" rx="4" class="op-box"/>
+  <text x="320" y="433" class="text-op">reports final outcome to JUnit Platform</text>
+
+  <!-- ================= NODES ================= -->
+
+  <!-- Node 1: @Property Method -->
+  <rect x="150" y="20" width="340" height="52" rx="6" class="node-box"/>
+  <text x="320" y="42" class="text-title"><tspan class="text-code">@Property</tspan>-annotated test method</text>
+  <text x="320" y="59" class="text-sub">test method declaring @ForAll parameters</text>
+
+  <!-- Node 2: PropertyExtension -->
+  <rect x="150" y="130" width="340" height="52" rx="6" class="node-box"/>
+  <text x="320" y="152" class="text-title"><tspan class="text-code">PropertyExtension</tspan></text>
+  <text x="320" y="169" class="text-sub">resolves generators via type inference or factory methods</text>
+
+  <!-- Node 3: Property.check() -->
+  <rect x="150" y="240" width="340" height="52" rx="6" class="node-box"/>
+  <text x="320" y="262" class="text-title"><tspan class="text-code">Property.check()</tspan></text>
+  <text x="320" y="279" class="text-sub">configures examples, seed, budget, and timeouts</text>
+
+  <!-- Node 4: Generate/Check/Shrink Loop -->
+  <rect x="150" y="350" width="340" height="52" rx="6" class="node-box"/>
+  <text x="320" y="372" class="text-title">Generate / Check / Shrink Loop</text>
+  <text x="320" y="389" class="text-sub">runs examples internally &amp; minimizes failing inputs</text>
+
+  <!-- Node 5: Single JUnit Test Result -->
+  <rect x="150" y="460" width="340" height="52" rx="6" class="node-box"/>
+  <text x="320" y="482" class="text-title">Single JUnit Test Result</text>
+  <text x="320" y="499" class="text-sub">PASS or FAIL with full shrunk failure report</text>
+</svg>

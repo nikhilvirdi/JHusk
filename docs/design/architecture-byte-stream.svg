@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 575" width="680" height="575" style="background: transparent; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <defs>
+    <!-- Soft Drop Shadow -->
+    <filter id="box-shadow" x="-10%" y="-10%" width="125%" height="125%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+    
+    <!-- Light grey arrow marker -->
+    <marker id="arrow-grey" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <style>
+    .node-box { fill: rgba(148, 163, 184, 0.12); stroke: #cbd5e1; stroke-width: 1.2; filter: url(#box-shadow); }
+    .node-terminal { fill: rgba(148, 163, 184, 0.12); stroke: #cbd5e1; stroke-width: 1.2; stroke-dasharray: 4 3; filter: url(#box-shadow); }
+    .op-box { fill: rgba(15, 23, 42, 0.7); stroke: #94a3b8; stroke-width: 1.1; stroke-dasharray: 2 2; filter: url(#box-shadow); }
+    .edge-line { fill: none; stroke: #94a3b8; stroke-width: 1.2; }
+    .text-title { fill: #f8fafc; font-size: 13px; font-weight: 600; text-anchor: middle; }
+    .text-sub { fill: #cbd5e1; font-size: 12px; font-weight: 400; text-anchor: middle; }
+    .text-code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; fill: #e2e8f0; text-anchor: middle; }
+    .text-op { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; fill: #e2e8f0; font-weight: 500; text-anchor: middle; }
+  </style>
+
+  <!-- ================= CONNECTORS & ARROWS ================= -->
+
+  <!-- 1. Stage 1 (Raw Bytes) -> Stage 2 (Root Span) -->
+  <line x1="340" y1="74" x2="340" y2="138" class="edge-line" marker-end="url(#arrow-grey)"/>
+
+  <!-- 2. Root -> int child (Left) -->
+  <path d="M 290 180 L 290 202 Q 290 212 270 212 L 195 212 Q 175 212 175 220 L 175 224" 
+        class="edge-line" marker-end="url(#arrow-grey)"/>
+
+  <!-- 3. Root -> list child (Right) -->
+  <path d="M 390 180 L 390 202 Q 390 212 410 212 L 485 212 Q 505 212 505 220 L 505 224" 
+        class="edge-line" marker-end="url(#arrow-grey)"/>
+
+  <!-- 4. list -> elem 1 -->
+  <path d="M 460 278 L 460 298 Q 460 308 440 308 L 420 308 Q 405 308 405 314 L 405 320" 
+        class="edge-line" marker-end="url(#arrow-grey)"/>
+
+  <!-- 5. list -> elem 2 -->
+  <path d="M 550 278 L 550 298 Q 550 308 565 308 L 575 308 Q 575 308 575 314 L 575 320" 
+        class="edge-line" marker-end="url(#arrow-grey)"/>
+
+  <!-- 6. Tree Leaves Convergence to Bus (y = 410) -->
+  <!-- int leaf -> bus -->
+  <line x1="175" y1="278" x2="175" y2="410" class="edge-line"/>
+  <!-- elem 1 leaf -> bus -->
+  <line x1="405" y1="372" x2="405" y2="410" class="edge-line"/>
+  <!-- elem 2 leaf -> bus -->
+  <line x1="575" y1="372" x2="575" y2="410" class="edge-line"/>
+  <!-- Horizontal Bus -->
+  <line x1="175" y1="410" x2="575" y2="410" class="edge-line"/>
+
+  <!-- 7. Bus Center -> Terminal Value (through Op-Box) -->
+  <line x1="340" y1="410" x2="340" y2="488" class="edge-line" marker-end="url(#arrow-grey)"/>
+
+  <!-- ================= OPERATION BADGES ================= -->
+
+  <!-- Top Transition Op -->
+  <rect x="210" y="95" width="260" height="24" rx="4" class="op-box"/>
+  <text x="340" y="111" class="text-op">Span recording during draw</text>
+
+  <!-- Bottom Transition Op -->
+  <rect x="195" y="425" width="290" height="24" rx="4" class="op-box"/>
+  <text x="340" y="441" class="text-op">interprets byte spans into Java object</text>
+
+  <!-- ================= NODES ================= -->
+
+  <!-- Stage 1: Raw Bytes -->
+  <rect x="70" y="20" width="540" height="54" rx="6" class="node-box"/>
+  <text x="340" y="42" class="text-title">Raw Byte Stream (<tspan class="text-code">DataSource</tspan>)</text>
+  <text x="340" y="60" class="text-code">[4A] [00] [FF] [1B]   [00] [00] [00] [7E] ...</text>
+
+  <!-- Stage 2: Span Tree -->
+  <!-- Root Span -->
+  <rect x="240" y="144" width="200" height="36" rx="6" class="node-box"/>
+  <text x="340" y="166" class="text-title">root (Span)</text>
+
+  <!-- Left Child: int [bytes 0:4] -->
+  <rect x="65" y="230" width="220" height="48" rx="6" class="node-box"/>
+  <text x="175" y="251" class="text-title"><tspan class="text-code">int</tspan></text>
+  <text x="175" y="267" class="text-sub">Span [bytes 0:4]</text>
+
+  <!-- Right Child: list [bytes 4:12] -->
+  <rect x="395" y="230" width="220" height="48" rx="6" class="node-box"/>
+  <text x="505" y="251" class="text-title"><tspan class="text-code">list</tspan></text>
+  <text x="505" y="267" class="text-sub">composite Span</text>
+
+  <!-- Elem 1: [bytes 4:8] -->
+  <rect x="330" y="326" width="150" height="46" rx="6" class="node-box"/>
+  <text x="405" y="346" class="text-title"><tspan class="text-code">elem</tspan></text>
+  <text x="405" y="361" class="text-sub">[bytes 4:8]</text>
+
+  <!-- Elem 2: [bytes 8:12] -->
+  <rect x="500" y="326" width="150" height="46" rx="6" class="node-box"/>
+  <text x="575" y="346" class="text-title"><tspan class="text-code">elem</tspan></text>
+  <text x="575" y="361" class="text-sub">[bytes 8:12]</text>
+
+  <!-- Stage 3: Interpreted Value (Terminal) -->
+  <rect x="160" y="494" width="360" height="56" rx="6" class="node-terminal"/>
+  <text x="340" y="517" class="text-title">Interpreted Value: <tspan class="text-code">[126, 42]</tspan></text>
+  <text x="340" y="535" class="text-sub">final object passed to assertion</text>
+</svg>

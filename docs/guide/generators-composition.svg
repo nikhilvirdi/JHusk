@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" width="640" height="480" style="background: transparent; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <defs>
+    <!-- Soft Drop Shadow -->
+    <filter id="box-shadow" x="-10%" y="-10%" width="125%" height="125%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+    
+    <!-- Light grey arrow marker -->
+    <marker id="arrow-grey" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <style>
+    .node-box { fill: rgba(148, 163, 184, 0.12); stroke: #cbd5e1; stroke-width: 1.2; filter: url(#box-shadow); }
+    .op-box { fill: rgba(15, 23, 42, 0.7); stroke: #94a3b8; stroke-width: 1.1; stroke-dasharray: 2 2; filter: url(#box-shadow); }
+    .edge-line { fill: none; stroke: #94a3b8; stroke-width: 1.2; }
+    .text-title { fill: #f8fafc; font-size: 13px; font-weight: 600; text-anchor: middle; }
+    .text-sub { fill: #cbd5e1; font-size: 12px; font-weight: 400; text-anchor: middle; }
+    .text-code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; fill: #e2e8f0; }
+    .text-op { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; fill: #e2e8f0; font-weight: 500; text-anchor: middle; }
+  </style>
+
+  <!-- ================= CONNECTORS & ARROWS ================= -->
+
+  <!-- Arrow 1 -> 2 -->
+  <line x1="320" y1="78" x2="320" y2="132" class="edge-line" marker-end="url(#arrow-grey)"/>
+  
+  <!-- Arrow 2 -> 3 -->
+  <line x1="320" y1="192" x2="320" y2="246" class="edge-line" marker-end="url(#arrow-grey)"/>
+  
+  <!-- Arrow 3 -> 4 -->
+  <line x1="320" y1="306" x2="320" y2="368" class="edge-line" marker-end="url(#arrow-grey)"/>
+
+  <!-- ================= OPERATION BADGES ================= -->
+
+  <!-- Op 1: map -->
+  <rect x="215" y="93" width="210" height="24" rx="4" class="op-box"/>
+  <text x="320" y="109" class="text-op">.map(String::valueOf)</text>
+
+  <!-- Op 2: filter -->
+  <rect x="185" y="207" width="270" height="24" rx="4" class="op-box"/>
+  <text x="320" y="223" class="text-op">.filter(s -&gt; !s.equals("5"))</text>
+
+  <!-- Op 3: combine -->
+  <rect x="130" y="323" width="380" height="24" rx="4" class="op-box"/>
+  <text x="320" y="339" class="text-op">combine(..., otherGen, (a, b) -&gt; new Pair(a, b))</text>
+
+  <!-- ================= NODES ================= -->
+
+  <!-- Node 1: Base Integer Generator -->
+  <rect x="170" y="24" width="300" height="54" rx="6" class="node-box"/>
+  <text x="320" y="46" class="text-title"><tspan class="text-code">Generators.integers(0, 9)</tspan></text>
+  <text x="320" y="63" class="text-sub">Generator&lt;Integer&gt; (range 0..9)</text>
+
+  <!-- Node 2: Mapped String Generator -->
+  <rect x="170" y="138" width="300" height="54" rx="6" class="node-box"/>
+  <text x="320" y="160" class="text-title">Generator&lt;String&gt;</text>
+  <text x="320" y="177" class="text-sub">produces "0".."9"</text>
+
+  <!-- Node 3: Filtered String Generator -->
+  <rect x="170" y="252" width="300" height="54" rx="6" class="node-box"/>
+  <text x="320" y="274" class="text-title">Generator&lt;String&gt;</text>
+  <text x="320" y="291" class="text-sub">produces "0".."9" except "5"</text>
+
+  <!-- Node 4: Combined Composite Generator -->
+  <rect x="170" y="374" width="300" height="54" rx="6" class="node-box"/>
+  <text x="320" y="396" class="text-title">Generator&lt;Pair&gt;</text>
+  <text x="320" y="413" class="text-sub">composite domain object: Pair(String, T)</text>
+</svg>

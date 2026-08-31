@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 370" width="680" height="370" style="background: transparent; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <defs>
+    <!-- Soft Drop Shadow -->
+    <filter id="box-shadow" x="-10%" y="-10%" width="125%" height="125%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+    
+    <!-- Light grey arrow marker -->
+    <marker id="arrow-grey" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <style>
+    .node-box { fill: rgba(148, 163, 184, 0.12); stroke: #cbd5e1; stroke-width: 1.2; filter: url(#box-shadow); }
+    .node-terminal { fill: rgba(148, 163, 184, 0.12); stroke: #cbd5e1; stroke-width: 1.2; stroke-dasharray: 4 3; filter: url(#box-shadow); }
+    .op-box { fill: rgba(15, 23, 42, 0.7); stroke: #94a3b8; stroke-width: 1.1; stroke-dasharray: 2 2; filter: url(#box-shadow); }
+    .edge-line { fill: none; stroke: #94a3b8; stroke-width: 1.2; }
+    .text-title { fill: #f8fafc; font-size: 13px; font-weight: 600; text-anchor: middle; }
+    .text-sub { fill: #cbd5e1; font-size: 12px; font-weight: 400; text-anchor: middle; }
+    .text-code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; fill: #e2e8f0; }
+    .text-op { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; fill: #e2e8f0; font-weight: 500; text-anchor: middle; }
+  </style>
+
+  <!-- ================= CONNECTORS & ARROWS ================= -->
+
+  <!-- Run 1 -> Run 2 -->
+  <line x1="340" y1="74" x2="340" y2="128" class="edge-line" marker-end="url(#arrow-grey)"/>
+
+  <!-- Run 2 -> Left Branch (Still Fails) -->
+  <path d="M 280 188 L 280 208 Q 280 220 260 220 L 195 220 Q 175 220 175 232 L 175 264" 
+        class="edge-line" marker-end="url(#arrow-grey)"/>
+
+  <!-- Run 2 -> Right Branch (Now Passes) -->
+  <path d="M 400 188 L 400 208 Q 400 220 420 220 L 485 220 Q 505 220 505 232 L 505 264" 
+        class="edge-line" marker-end="url(#arrow-grey)"/>
+
+  <!-- ================= OPERATION BADGES ================= -->
+
+  <!-- Top Transition Op -->
+  <rect x="235" y="89" width="210" height="24" rx="4" class="op-box"/>
+  <text x="340" y="105" class="text-op">subsequent test run</text>
+
+  <!-- Left Branch Op -->
+  <rect x="110" y="208" width="130" height="24" rx="4" class="op-box"/>
+  <text x="175" y="224" class="text-op">still fails</text>
+
+  <!-- Right Branch Op -->
+  <rect x="440" y="208" width="130" height="24" rx="4" class="op-box"/>
+  <text x="505" y="224" class="text-op">now passes</text>
+
+  <!-- ================= NODES ================= -->
+
+  <!-- Node 1: Run 1 Failure -->
+  <rect x="170" y="20" width="340" height="54" rx="6" class="node-box"/>
+  <text x="340" y="42" class="text-title">Run 1: Initial Failure</text>
+  <text x="340" y="59" class="text-sub">generate → check → <tspan font-weight="600">FAILS</tspan> → save bytes to <tspan class="text-code">.jhusk/</tspan></text>
+
+  <!-- Node 2: Run 2 Replay -->
+  <rect x="170" y="134" width="340" height="54" rx="6" class="node-box"/>
+  <text x="340" y="156" class="text-title">Run 2: Replay Stored Bytes First</text>
+  <text x="340" y="173" class="text-sub">replays saved failure before new random generation</text>
+
+  <!-- Node 3: Outcome A (Regression Caught) -->
+  <rect x="35" y="270" width="280" height="64" rx="6" class="node-terminal"/>
+  <text x="175" y="295" class="text-title">Report Failure Immediately</text>
+  <text x="175" y="313" class="text-sub">regression caught fast on replay</text>
+
+  <!-- Node 4: Outcome B (Passes & Continue) -->
+  <rect x="365" y="270" width="280" height="64" rx="6" class="node-box"/>
+  <text x="505" y="295" class="text-title">Delete Stored Failure</text>
+  <text x="505" y="313" class="text-sub">clears entry &amp; continues random generation</text>
+</svg>

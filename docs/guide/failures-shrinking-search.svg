@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 460" width="640" height="460" style="background: transparent; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <defs>
+    <!-- Soft Drop Shadow -->
+    <filter id="box-shadow" x="-10%" y="-10%" width="125%" height="125%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+    
+    <!-- Light grey arrow marker -->
+    <marker id="arrow-grey" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <style>
+    .node-box { fill: rgba(148, 163, 184, 0.12); stroke: #cbd5e1; stroke-width: 1.2; filter: url(#box-shadow); }
+    .node-terminal { fill: rgba(148, 163, 184, 0.12); stroke: #cbd5e1; stroke-width: 1.2; stroke-dasharray: 4 3; filter: url(#box-shadow); }
+    .op-box { fill: rgba(15, 23, 42, 0.7); stroke: #94a3b8; stroke-width: 1.1; stroke-dasharray: 2 2; filter: url(#box-shadow); }
+    .edge-line { fill: none; stroke: #94a3b8; stroke-width: 1.2; }
+    .text-title { fill: #f8fafc; font-size: 13px; font-weight: 600; text-anchor: middle; }
+    .text-sub { fill: #cbd5e1; font-size: 12px; font-weight: 400; text-anchor: middle; }
+    .text-code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; fill: #e2e8f0; }
+    .text-op { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; fill: #e2e8f0; font-weight: 500; text-anchor: middle; }
+  </style>
+
+  <!-- ================= CONNECTORS & ARROWS ================= -->
+
+  <!-- Arrow 1 -> 2 -->
+  <line x1="320" y1="74" x2="320" y2="128" class="edge-line" marker-end="url(#arrow-grey)"/>
+  
+  <!-- Arrow 2 -> 3 -->
+  <line x1="320" y1="188" x2="320" y2="242" class="edge-line" marker-end="url(#arrow-grey)"/>
+  
+  <!-- Arrow 3 -> 4 -->
+  <line x1="320" y1="302" x2="320" y2="362" class="edge-line" marker-end="url(#arrow-grey)"/>
+
+  <!-- ================= OPERATION BADGES ================= -->
+
+  <!-- Op 1 -->
+  <rect x="200" y="89" width="240" height="24" rx="4" class="op-box"/>
+  <text x="320" y="105" class="text-op">shrink attempt (delete spans)</text>
+
+  <!-- Op 2 -->
+  <rect x="200" y="203" width="240" height="24" rx="4" class="op-box"/>
+  <text x="320" y="219" class="text-op">shrink attempt (reduce elements)</text>
+
+  <!-- Op 3 -->
+  <rect x="140" y="318" width="360" height="24" rx="4" class="op-box"/>
+  <text x="320" y="334" class="text-op">shrink attempt (can't reduce further)</text>
+
+  <!-- ================= NODES ================= -->
+
+  <!-- Node 1: Initial Failing Input -->
+  <rect x="140" y="20" width="360" height="54" rx="6" class="node-box"/>
+  <text x="320" y="42" class="text-title"><tspan class="text-code">[93, 4, -812, 0, 55, 12, 9001, ...]</tspan></text>
+  <text x="320" y="59" class="text-sub">50 elements — fails</text>
+
+  <!-- Node 2: 5 elements -->
+  <rect x="140" y="134" width="360" height="54" rx="6" class="node-box"/>
+  <text x="320" y="156" class="text-title"><tspan class="text-code">[93, 4, -812, 0, 55]</tspan></text>
+  <text x="320" y="173" class="text-sub">5 elements — still fails</text>
+
+  <!-- Node 3: 2 elements -->
+  <rect x="140" y="248" width="360" height="54" rx="6" class="node-box"/>
+  <text x="320" y="270" class="text-title"><tspan class="text-code">[93, 4]</tspan></text>
+  <text x="320" y="287" class="text-sub">2 elements — still fails</text>
+
+  <!-- Node 4: Final minimal failure -->
+  <rect x="140" y="368" width="360" height="56" rx="6" class="node-terminal"/>
+  <text x="320" y="391" class="text-title"><tspan class="text-code">[11]</tspan></text>
+  <text x="320" y="408" class="text-sub">smallest failing input — reported to you</text>
+</svg>

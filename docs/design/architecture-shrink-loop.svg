@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 570" width="720" height="570" style="background: transparent; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <defs>
+    <!-- Soft Drop Shadow -->
+    <filter id="box-shadow" x="-10%" y="-10%" width="125%" height="125%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+    
+    <!-- Light grey arrow marker -->
+    <marker id="arrow-grey" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <style>
+    .node-box { fill: rgba(148, 163, 184, 0.12); stroke: #cbd5e1; stroke-width: 1.2; filter: url(#box-shadow); }
+    .node-decision { fill: rgba(148, 163, 184, 0.12); stroke: #cbd5e1; stroke-width: 1.2; filter: url(#box-shadow); }
+    .node-terminal { fill: rgba(148, 163, 184, 0.12); stroke: #cbd5e1; stroke-width: 1.2; stroke-dasharray: 4 3; filter: url(#box-shadow); }
+    .op-box { fill: rgba(15, 23, 42, 0.7); stroke: #94a3b8; stroke-width: 1.1; stroke-dasharray: 2 2; filter: url(#box-shadow); }
+    .edge-line { fill: none; stroke: #94a3b8; stroke-width: 1.2; }
+    .edge-loop { fill: none; stroke: #94a3b8; stroke-width: 1.2; stroke-dasharray: 4 3; }
+    .text-title { fill: #f8fafc; font-size: 13px; font-weight: 600; text-anchor: middle; }
+    .text-sub { fill: #cbd5e1; font-size: 12px; font-weight: 400; text-anchor: middle; }
+    .text-code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; fill: #e2e8f0; }
+    .text-op { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; fill: #e2e8f0; font-weight: 500; text-anchor: middle; }
+  </style>
+
+  <!-- ================= CONNECTORS & ARROWS ================= -->
+
+  <!-- Top -> Box 2 (y=68 down to y=102, landing at y=108) -->
+  <line x1="360" y1="68" x2="360" y2="102" class="edge-line" marker-end="url(#arrow-grey)"/>
+
+  <!-- Box 2 -> Box 3 (y=162 down to y=202, landing at y=208) -->
+  <line x1="360" y1="162" x2="360" y2="202" class="edge-line" marker-end="url(#arrow-grey)"/>
+
+  <!-- Box 3 -> Decision Diamond (y=262 down to y=296, landing at vertex y=302) -->
+  <line x1="360" y1="262" x2="360" y2="296" class="edge-line" marker-end="url(#arrow-grey)"/>
+
+  <!-- Left Loop-Back: Diamond (x=270, y=342) -> Box 2 Left Edge (x=190, y=135) -->
+  <path d="M 270 342 L 80 342 Q 65 342 65 327 L 65 150 Q 65 135 80 135 L 190 135" 
+        class="edge-loop" marker-end="url(#arrow-grey)"/>
+
+  <!-- Right Loop-Back: Diamond (x=450, y=342) -> Box 2 Right Edge (x=530, y=135) -->
+  <path d="M 450 342 L 640 342 Q 655 342 655 327 L 655 150 Q 655 135 640 135 L 530 135" 
+        class="edge-loop" marker-end="url(#arrow-grey)"/>
+
+  <!-- Down Exit: Diamond Bottom (y=382) -> Terminal Box (y=486) -->
+  <line x1="360" y1="382" x2="360" y2="480" class="edge-line" marker-end="url(#arrow-grey)"/>
+
+  <!-- ================= OPERATION BADGES ================= -->
+
+  <!-- Left Op Badge: yes: keep smaller buffer -->
+  <rect x="30" y="328" width="200" height="28" rx="4" class="op-box"/>
+  <text x="130" y="346" class="text-op">yes: keep smaller buffer</text>
+
+  <!-- Right Op Badge: no: discard attempt -->
+  <rect x="490" y="328" width="200" height="28" rx="4" class="op-box"/>
+  <text x="590" y="346" class="text-op">no: discard attempt</text>
+
+  <!-- Down Exit Op Badge: no further reductions possible -->
+  <rect x="220" y="414" width="280" height="26" rx="4" class="op-box"/>
+  <text x="360" y="431" class="text-op">no further reductions possible</text>
+
+  <!-- ================= NODES ================= -->
+
+  <!-- Node 1: Initial Failing Byte Buffer (y=20..68) -->
+  <rect x="210" y="20" width="300" height="48" rx="6" class="node-box"/>
+  <text x="360" y="40" class="text-title">Failing Byte Buffer</text>
+  <text x="360" y="56" class="text-sub">initial failing example found</text>
+
+  <!-- Node 2: Try Deleting a Span's Byte Range (y=108..162) -->
+  <rect x="190" y="108" width="340" height="54" rx="6" class="node-box"/>
+  <text x="360" y="130" class="text-title">Try Deleting a Span's Byte Range</text>
+  <text x="360" y="148" class="text-sub">produce smaller candidate buffer</text>
+
+  <!-- Node 3: Re-run Interpreter (y=208..262) -->
+  <rect x="190" y="208" width="340" height="54" rx="6" class="node-box"/>
+  <text x="360" y="230" class="text-title">Re-run Interpreter on Shrunk Bytes</text>
+  <text x="360" y="248" class="text-sub">evaluate property against candidate value</text>
+
+  <!-- Node 4: Decision Diamond (vertices: 360,302 450,342 360,382 270,342) -->
+  <polygon points="360,302 450,342 360,382 270,342" class="node-decision"/>
+  <text x="360" y="347" class="text-title">Still fails?</text>
+
+  <!-- Node 5: Terminal Output Box (y=486..544) -->
+  <rect x="170" y="486" width="380" height="58" rx="6" class="node-terminal"/>
+  <text x="360" y="510" class="text-title">Report Minimal Failing Value</text>
+  <text x="360" y="528" class="text-sub">smallest reproducing failure found</text>
+</svg>
