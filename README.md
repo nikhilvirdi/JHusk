@@ -56,7 +56,7 @@ JHusk is published on Maven Central under the coordinates `io.github.nikhilvirdi
 <dependency>
     <groupId>io.github.nikhilvirdi</groupId>
     <artifactId>jhusk</artifactId>
-    <version>1.1.1</version>
+    <version>1.2.0</version>
     <scope>test</scope>
 </dependency>
 ```
@@ -83,6 +83,7 @@ Beyond that initial review, an independent, external adversarial test suite exis
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history, including every fix and addition in each version.
 
+- [1.2.0](CHANGELOG.md#120---2026-08-31), formal terminal reporting, a `@Property` timeout attribute, and several validation fixes
 - [1.1.1](CHANGELOG.md#111---2026-08-10), a fix for a `Generator.flatMap()` crash found by independent adversarial testing
 - [1.1.0](CHANGELOG.md#110---2026-08-10), stateful testing, `assuming()`, better shrinking on large collections, and more
 - [1.0.1](CHANGELOG.md#101---2026-08-09), bug fixes from an independent adversarial review
