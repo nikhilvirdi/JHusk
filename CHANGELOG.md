@@ -4,6 +4,25 @@ All notable changes to JHusk are documented here, most recent release first.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-08-31
+
+A feature release adding formal terminal reporting and a `@Property` timeout attribute, on top of several real correctness fixes found during an expanded internal adversarial review. Nothing here breaks any documented, intended usage from 1.1.1.
+
+### Added
+
+- **Formal terminal output reporting.** Running under JUnit 5, JHusk now groups results by test class and prints a clean `PASS`/`FAIL` summary as each property completes, followed by one final summary once the whole run finishes (total passed/failed/skipped, cumulative examples, elapsed duration). A failing property expands with its full shrunk report immediately, rather than waiting for the run to end. The startup banner now defaults to off (`-Djhusk.banner=true` re-enables it), and output color is auto-detected based on whether output is going to a real terminal, respects the `NO_COLOR` environment variable, and can be forced with `-Djhusk.color=always|never|auto`.
+- **`timeoutMillis` on `@Property`.** `Property.timeoutPerExample(Duration)` was previously reachable only through direct `Property.forAll(...)` usage. `@Property(timeoutMillis = 2000)` now sets the same per-example timeout directly from the JUnit annotation.
+
+### Fixed
+
+- **`examples(0)` silently passing without testing anything.** `Property.examples(int)` accepted any value with no validation. Since the check loop is `while (successfulRuns < examples)`, a value of zero or negative meant the loop never ran at all, and the property reported as passing having generated nothing. `examples(int)` now rejects non-positive values immediately with `IllegalArgumentException`. `maxInvalidRuns(int)` had the same gap and is fixed the same way.
+- **`timeoutPerExample(Duration)` accepting a timeout that could never succeed.** A zero or negative duration guaranteed every example would time out immediately, with no upfront indication anything was misconfigured. Non-null zero or negative durations are now rejected immediately with `IllegalArgumentException`; `null` (meaning "no timeout") remains valid.
+- **`Commands.withCommand(Generator, int, int)` deferring invalid bounds to `asProperty()` time.** A negative `minSize` or `minSize > maxSize` was only caught later, inside `Generators.lists()`, once `asProperty()` was eventually called, far from where the actual mistake was made. `withCommand(...)` now validates its bounds immediately, at the call site.
+- **A null pointer exception on a static `@Property` method using a static `@ForAll` factory.** `PropertyExtension.resolveGenerator` looked up the referenced generator factory method via the test instance's class, which is `null` for a static test method under JUnit 5's own semantics, crashing with a bare `NullPointerException` before reaching this method's other, well-formed error messages. It now uses the test method's declaring class instead, which works correctly for both static and instance methods, and reports a clear `IllegalStateException` in the one genuinely invalid case: a static test method referencing a non-static factory.
+- **`IntStack` removed from the published jar.** `IntStack` was a leftover teaching fixture from this project's earliest bootstrapping, already documented in its own package's javadoc as not part of the public API despite being `public`. It has been moved to this project's own test sources, so it no longer ships in the jar at all. Anyone who was, against that documentation, depending on it directly will need to supply their own equivalent.
+
+Verified against an expanded internal adversarial suite consolidating and extending four independent test efforts: 210 scenarios spanning boundary values, malformed usage, concurrency, deep generator composition, stateful command sequences, and 17 deliberately planted bugs, all correctly caught.
+
 ## [1.1.1] - 2026-08-10
 
 A bug-fix release. No new features, no breaking changes; everything
